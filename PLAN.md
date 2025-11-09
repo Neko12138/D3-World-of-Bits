@@ -1,0 +1,57 @@
+# D3: No Game No Life
+
+Game Design Vision
+
+{a few-sentence description of the game mechanics}
+
+Technologies
+
+- TypeScript for most game code, little to no explicit HTML, and all CSS collected in common `style.css` file
+- Deno and Vite for building
+- GitHub Actions + GitHub Pages for deployment automation
+
+## Assignments
+
+### D3.a: Core Mechanics
+
+Key technical challenge: Implement a deterministic map-based system using Leaflet where each grid cell’s content (token presence and value) is visible and consistent across page loads.\
+Key gameplay challenge: Players can collect and craft nearby tokens to create higher-value ones, with clear inventory feedback and limited interaction range.
+
+#### Steps
+
+##### 1. Setup & Map Initialization
+
+- [x] Backup existing `main.ts` to `reference.ts` for future reference
+- [x] Clear all contents in `main.ts`
+- [ ] Import and initialize a basic Leaflet map centered on the classroom location
+- [ ] Add player marker to indicate the fixed player position
+- [ ] Lock map panning/zoom to reasonable limits (player-centered view)
+
+##### 2. Grid Rendering
+
+- [ ] Define grid parameters (e.g. cell size ≈ 0.0001 degrees)
+- [ ] Implement loops to render visible grid cells around player position
+- [ ] Display each cell as a rectangle or marker on the map
+- [ ] Use deterministic hashing (Luck library) to decide if a cell contains a token, and its value
+- [ ] Display token info (value or symbol) directly on the cell without clicking
+
+##### 3. Interaction Mechanics
+
+- [ ] Implement click handling on cells
+- [ ] Restrict interactions to cells within ~3 cells of player
+- [ ] On click: pick up a token if available and none is currently held
+- [ ] Remove token from cell when picked up
+- [ ] Display current held token and its value on the screen (inventory UI)
+
+##### 4. Crafting System
+
+- [ ] If player has a token, allow placing it on a cell with a token of equal value
+- [ ] On placement: remove both tokens and create a new token with double value
+- [ ] Update UI to reflect new token or empty hand
+- [ ] Detect and notify when player obtains a high-value token (e.g. 8 or 16)
+
+##### 5. Persistence & Determinism
+
+- [ ] Ensure token spawning is deterministic (Luck function or seeded hash)
+- [ ] Ensure cell contents are consistent across page reloads
+- [ ] Keep player inventory persistent during a session
