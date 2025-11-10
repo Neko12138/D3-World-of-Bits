@@ -1,13 +1,13 @@
 // @deno-types="npm:@types/leaflet"
 import leaflet from "leaflet";
-import luck from "./_luck.ts"; //deterministic token generation
+import luck from "./_luck.ts"; // deterministic token generation
 
 // Style sheets
-import "leaflet/dist/leaflet.css"; // supporting style for Leaflet
-import "./style.css"; // student-controlled page style
+import "leaflet/dist/leaflet.css";
+import "./style.css";
 
 // Fix missing marker images
-import "./_leafletWorkaround.ts"; // fixes for missing Leaflet images
+import "./_leafletWorkaround.ts";
 
 /* -------------------------- control, map, status --------------------------*/
 const controlPanelDiv = document.createElement("div");
@@ -29,13 +29,13 @@ const CLASSROOM_LATLNG = leaflet.latLng(
 );
 
 const GAMEPLAY_ZOOM_LEVEL = 19;
+const CELL_SIZE = 0.0001;
+const GRID_RADIUS = 8;
+const TOKEN_PROBABILITY = 0.25;
+const INTERACTION_RADIUS = 3;
+const TOKEN_VALUE = 5; // $5 per token
 
-// Step 2 grid parameters
-const CELL_SIZE = 0.0001; // degrees (~11m)
-const GRID_RADIUS = 8; // how many cells outward from player
-const TOKEN_PROBABILITY = 0.25; // chance a cell contains a token
-
-/* -------------------------- Create Leaflet map (locked) --------------------------*/
+/* -------------------------- Create Leaflet map --------------------------*/
 const map = leaflet.map(mapDiv, {
   center: CLASSROOM_LATLNG,
   zoom: GAMEPLAY_ZOOM_LEVEL,
@@ -50,7 +50,6 @@ const map = leaflet.map(mapDiv, {
   keyboard: false,
 });
 
-/* -------------------------- Background tiles --------------------------*/
 leaflet
   .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
@@ -65,37 +64,18 @@ playerMarker.bindTooltip("That's you! (classroom)");
 playerMarker.addTo(map);
 
 /* -------------------------- Initial UI state --------------------------*/
-let heldToken: number | null = null; // player holds at most one token
-statusPanelDiv.innerHTML = `<div><strong>Held token:</strong> none</div>`;
+let heldToken = 0; // number of tokens
+statusPanelDiv.innerHTML =
+  `<div><strong>Tokens owned:</strong> ${heldToken} (Total: $${
+    heldToken * TOKEN_VALUE
+  })</div>`;
 
-/* -------------------------- Safe debug interface --------------------------*/
-// Define an explicit type for our debug object
-interface GameStateDebug {
-  CLASSROOM_LATLNG: leaflet.LatLng;
-  GAMEPLAY_ZOOM_LEVEL: number;
-  getHeldToken: () => number | null;
-  setHeldToken: (v: number | null) => void;
-}
+/* -------------------------- Grid rendering with tokens --------------------------*/
+const tokenMarkers: Map<string, leaflet.Marker> = new Map();
+let playerI = 0;
+let playerJ = 0;
+let _playerCellMarker: leaflet.Marker | null = null;
 
-// Create a typed accessor for globalThis
-const g = globalThis as typeof globalThis & {
-  __GAME_STATE_DEBUG__?: GameStateDebug;
-};
-
-// Assign safely with correct type
-g.__GAME_STATE_DEBUG__ = {
-  CLASSROOM_LATLNG,
-  GAMEPLAY_ZOOM_LEVEL,
-  getHeldToken: () => heldToken,
-  setHeldToken: (v: number | null) => {
-    heldToken = v;
-    statusPanelDiv.innerHTML = `<div><strong>Held token:</strong> ${
-      v === null ? "none" : v
-    }</div>`;
-  },
-};
-
-/* -------------------------- Step 2: Grid rendering with tokens --------------------------*/
 function drawGrid(): void {
   for (let i = -GRID_RADIUS; i <= GRID_RADIUS; i++) {
     for (let j = -GRID_RADIUS; j <= GRID_RADIUS; j++) {
@@ -103,32 +83,44 @@ function drawGrid(): void {
       const lng1 = CLASSROOM_LATLNG.lng + j * CELL_SIZE;
       const lat2 = lat1 + CELL_SIZE;
       const lng2 = lng1 + CELL_SIZE;
-
       const bounds = leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
 
-      // Draw a faint rectangle representing the cell
       const rect = leaflet.rectangle(bounds, {
         color: "#888",
         weight: 1,
         fillOpacity: 0.05,
       });
-
       rect.addTo(map);
 
-      // deterministic token generation using luck()
       const roll = luck(`${i},${j},token`);
-      const hasToken = roll < TOKEN_PROBABILITY; // 25% chance
-      const tokenValue = hasToken ? Math.pow(2, Math.floor(roll * 4) + 1) : 0;
+      const hasToken = roll < TOKEN_PROBABILITY;
 
-      // display token info directly on the cell if present
+      // token marker showing "1" only
       if (hasToken) {
         const center = bounds.getCenter();
-        leaflet
+        const tokenMarker = leaflet
           .marker(center, {
             icon: leaflet.divIcon({
               className: "token-label",
               html:
-                `<div style="font-size:10px;color:#d22;font-weight:bold;">${tokenValue}</div>`,
+                `<div style="font-size:12px;color:#d22;font-weight:bold;">1</div>`,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
+            }),
+            interactive: false,
+          })
+          .addTo(map);
+        tokenMarkers.set(`${i},${j}`, tokenMarker);
+      }
+
+      // initial player location
+      if (i === 0 && j === 0) {
+        const center = bounds.getCenter();
+        _playerCellMarker = leaflet
+          .marker(center, {
+            icon: leaflet.divIcon({
+              className: "player-label",
+              html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
               iconSize: [20, 20],
               iconAnchor: [10, 10],
             }),
@@ -137,11 +129,46 @@ function drawGrid(): void {
           .addTo(map);
       }
 
-      // Optional tooltip to help debugging
+      // handle movement & token collection
+      rect.on("click", () => {
+        const distI = Math.abs(i - playerI);
+        const distJ = Math.abs(j - playerJ);
+        if (distI > INTERACTION_RADIUS || distJ > INTERACTION_RADIUS) return;
+
+        // move player
+        playerI = i;
+        playerJ = j;
+        if (_playerCellMarker) map.removeLayer(_playerCellMarker);
+        const center = bounds.getCenter();
+        _playerCellMarker = leaflet
+          .marker(center, {
+            icon: leaflet.divIcon({
+              className: "player-label",
+              html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
+            }),
+            interactive: false,
+          })
+          .addTo(map);
+
+        // collect token if player has none
+        const key = `${i},${j}`;
+        if (tokenMarkers.has(key) && heldToken === 0) {
+          const marker = tokenMarkers.get(key)!;
+          heldToken = 1; // pick up only one token
+          statusPanelDiv.innerHTML =
+            `<div><strong>Tokens owned:</strong> ${heldToken} (Total: $${
+              heldToken * TOKEN_VALUE
+            })</div>`;
+          map.removeLayer(marker);
+          tokenMarkers.delete(key);
+        }
+      });
+
       rect.bindTooltip(`Cell (${i}, ${j})`, { permanent: false });
     }
   }
 }
 
-// Draw grid when map is initialized
 drawGrid();

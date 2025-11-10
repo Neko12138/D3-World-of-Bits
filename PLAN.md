@@ -37,11 +37,11 @@ Key gameplay challenge: Players can collect and craft nearby tokens to create hi
 
 ##### 3. Interaction Mechanics
 
-- [ ] Implement click handling on cells
-- [ ] Restrict interactions to cells within ~3 cells of player
-- [ ] On click: pick up a token if available and none is currently held
-- [ ] Remove token from cell when picked up
-- [ ] Display current held token and its value on the screen (inventory UI)
+- [x] Implement click handling on cells
+- [x] Restrict interactions to cells within ~3 cells of player
+- [x] On click: pick up a token if available and none is currently held
+- [x] Remove token from cell when picked up
+- [x] Display current held token and its value on the screen (inventory UI)
 
 ##### 4. Crafting System
 
