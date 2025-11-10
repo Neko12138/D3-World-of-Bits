@@ -29,11 +29,11 @@ Key gameplay challenge: Players can collect and craft nearby tokens to create hi
 
 ##### 2. Grid Rendering
 
-- [ ] Define grid parameters (e.g. cell size ≈ 0.0001 degrees)
-- [ ] Implement loops to render visible grid cells around player position
-- [ ] Display each cell as a rectangle or marker on the map
-- [ ] Use deterministic hashing (Luck library) to decide if a cell contains a token, and its value
-- [ ] Display token info (value or symbol) directly on the cell without clicking
+- [x] Define grid parameters (e.g. cell size ≈ 0.0001 degrees)
+- [x] Implement loops to render visible grid cells around player position
+- [x] Display each cell as a rectangle or marker on the map
+- [x] Use deterministic hashing (Luck library) to decide if a cell contains a token, and its value
+- [x] Display token info (value or symbol) directly on the cell without clicking
 
 ##### 3. Interaction Mechanics
 
