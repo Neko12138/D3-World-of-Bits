@@ -52,6 +52,6 @@ Key gameplay challenge: Players can collect and craft nearby tokens to create hi
 
 ##### 5. Persistence & Determinism
 
-- [ ] Ensure token spawning is deterministic (Luck function or seeded hash)
-- [ ] Ensure cell contents are consistent across page reloads
-- [ ] Keep player inventory persistent during a session
+- [x] Ensure token spawning is deterministic (Luck function or seeded hash)
+- [x] Ensure cell contents are consistent across page reloads
+- [x] Keep player inventory persistent during a session

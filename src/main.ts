@@ -2,12 +2,9 @@
 import leaflet from "leaflet";
 import luck from "./_luck.ts"; // deterministic token generation
 
-// Style sheets
 import "leaflet/dist/leaflet.css";
-import "./style.css";
-
-// Fix missing marker images
 import "./_leafletWorkaround.ts";
+import "./style.css";
 
 /* -------------------------- control, map, status --------------------------*/
 const controlPanelDiv = document.createElement("div");
@@ -35,6 +32,22 @@ const TOKEN_PROBABILITY = 0.25;
 const INTERACTION_RADIUS = 3;
 const TOKEN_VALUE = 5; // $5 per token
 
+/* -------------------------- Persistence --------------------------*/
+// load heldToken from session
+let heldToken = Number(sessionStorage.getItem("heldToken") || 0);
+
+function updateUI() {
+  if (heldToken === 0) {
+    statusPanelDiv.innerHTML = `<div>No Token</div>`;
+  } else {
+    statusPanelDiv.innerHTML =
+      `<div>Token on Hand<br>Token: ${heldToken} Value: $${
+        heldToken * TOKEN_VALUE
+      }</div>`;
+  }
+}
+updateUI();
+
 /* -------------------------- Create Leaflet map --------------------------*/
 const map = leaflet.map(mapDiv, {
   center: CLASSROOM_LATLNG,
@@ -58,33 +71,23 @@ leaflet
   })
   .addTo(map);
 
-/* -------------------------- Player marker --------------------------*/
-const playerMarker = leaflet.marker(CLASSROOM_LATLNG);
-playerMarker.bindTooltip("That's you! (classroom)");
-playerMarker.addTo(map);
-
-/* -------------------------- Initial UI state --------------------------*/
-let heldToken = 0; // number of tokens
-function updateUI() {
-  if (heldToken === 0) {
-    statusPanelDiv.innerHTML = `<div>No Token</div>`;
-  } else {
-    statusPanelDiv.innerHTML =
-      `<div>Token on Hand<br>Token: ${heldToken} Value: $${
-        heldToken * TOKEN_VALUE
-      }</div>`;
-  }
-}
-updateUI();
-
 /* -------------------------- Grid rendering with tokens --------------------------*/
-const tokenMarkers: Map<
-  string,
-  { marker: leaflet.Marker | null; value: number; canPickup: boolean }
-> = new Map();
+interface TokenData {
+  marker: leaflet.Marker | null;
+  value: number;
+  canPickup: boolean;
+}
+
+const tokenMarkers: Map<string, TokenData> = new Map();
 let playerI = 0;
 let playerJ = 0;
 let _playerCellMarker: leaflet.Marker | null = null;
+
+// load grid state from sessionStorage
+const savedGrid = JSON.parse(sessionStorage.getItem("grid") || "{}") as Record<
+  string,
+  TokenData
+>;
 
 function drawGrid(): void {
   for (let i = -GRID_RADIUS; i <= GRID_RADIUS; i++) {
@@ -94,6 +97,7 @@ function drawGrid(): void {
       const lat2 = lat1 + CELL_SIZE;
       const lng2 = lng1 + CELL_SIZE;
       const bounds = leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
+      const key = `${i},${j}`;
 
       const rect = leaflet.rectangle(bounds, {
         color: "#888",
@@ -102,14 +106,35 @@ function drawGrid(): void {
       });
       rect.addTo(map);
 
-      const roll = luck(`${i},${j},token`);
-      const hasToken = roll < TOKEN_PROBABILITY;
-
-      // token marker showing "1" only
-      if (hasToken) {
-        const center = bounds.getCenter();
-        const tokenMarker = leaflet
-          .marker(center, {
+      // restore or generate token
+      let tokenData: TokenData;
+      if (savedGrid[key]) {
+        tokenData = savedGrid[key];
+        if (tokenData.value > 0 && tokenData.marker === null) {
+          const center = bounds.getCenter();
+          const marker = leaflet.marker(center, {
+            icon: leaflet.divIcon({
+              className: "token-label",
+              html:
+                `<div style="font-size:12px;color:#d22;font-weight:bold;">${tokenData.value}</div>`,
+              iconSize: [20, 20],
+              iconAnchor: [10, 10],
+            }),
+            interactive: false,
+          }).addTo(map);
+          tokenData.marker = marker;
+        }
+      } else {
+        const roll = luck(`${i},${j},token`);
+        const hasToken = roll < TOKEN_PROBABILITY;
+        tokenData = {
+          marker: null,
+          value: hasToken ? 1 : 0,
+          canPickup: true,
+        };
+        if (hasToken) {
+          const center = bounds.getCenter();
+          const marker = leaflet.marker(center, {
             icon: leaflet.divIcon({
               className: "token-label",
               html:
@@ -118,29 +143,24 @@ function drawGrid(): void {
               iconAnchor: [10, 10],
             }),
             interactive: false,
-          })
-          .addTo(map);
-        tokenMarkers.set(`${i},${j}`, {
-          marker: tokenMarker,
-          value: 1,
-          canPickup: true,
-        });
+          }).addTo(map);
+          tokenData.marker = marker;
+        }
       }
+      tokenMarkers.set(key, tokenData);
 
       // initial player location
       if (i === 0 && j === 0) {
         const center = bounds.getCenter();
-        _playerCellMarker = leaflet
-          .marker(center, {
-            icon: leaflet.divIcon({
-              className: "player-label",
-              html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
-              iconSize: [20, 20],
-              iconAnchor: [10, 10],
-            }),
-            interactive: false,
-          })
-          .addTo(map);
+        _playerCellMarker = leaflet.marker(center, {
+          icon: leaflet.divIcon({
+            className: "player-label",
+            html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          }),
+          interactive: false,
+        }).addTo(map);
       }
 
       // handle movement & token collection
@@ -149,39 +169,36 @@ function drawGrid(): void {
         const distJ = Math.abs(j - playerJ);
         if (distI > INTERACTION_RADIUS || distJ > INTERACTION_RADIUS) return;
 
-        // move player
         playerI = i;
         playerJ = j;
         if (_playerCellMarker) map.removeLayer(_playerCellMarker);
         const center = bounds.getCenter();
-        _playerCellMarker = leaflet
-          .marker(center, {
-            icon: leaflet.divIcon({
-              className: "player-label",
-              html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
-              iconSize: [20, 20],
-              iconAnchor: [10, 10],
-            }),
-            interactive: false,
-          })
-          .addTo(map);
+        _playerCellMarker = leaflet.marker(center, {
+          icon: leaflet.divIcon({
+            className: "player-label",
+            html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          }),
+          interactive: false,
+        }).addTo(map);
 
-        // pick up token only if canPickup is true
-        const key = `${i},${j}`;
-        if (tokenMarkers.has(key)) {
-          const data = tokenMarkers.get(key)!;
-          if (heldToken === 0 && data.canPickup && data.value > 0) {
-            heldToken = data.value;
-            data.value = 0;
-            data.canPickup = false;
-            if (data.marker) map.removeLayer(data.marker);
-            data.marker = null;
-            updateUI();
-            if (heldToken * TOKEN_VALUE >= 80) {
-              alert("The first step to millionaire");
-            }
-          }
+        const data = tokenMarkers.get(key)!;
+        if (heldToken === 0 && data.canPickup && data.value > 0) {
+          heldToken = data.value;
+          data.value = 0;
+          data.canPickup = false;
+          if (data.marker) map.removeLayer(data.marker);
+          data.marker = null;
+          updateUI();
+          sessionStorage.setItem("heldToken", heldToken.toString());
         }
+
+        // save grid state
+        sessionStorage.setItem(
+          "grid",
+          JSON.stringify(Object.fromEntries(tokenMarkers)),
+        );
       });
 
       rect.bindTooltip(`Cell (${i}, ${j})`, { permanent: false });
@@ -197,26 +214,24 @@ addEventListener("keydown", (e) => {
   if (heldToken === 0) return;
 
   const key = `${playerI},${playerJ}`;
+  const data = tokenMarkers.get(key)!;
 
-  if (!tokenMarkers.has(key) || tokenMarkers.get(key)!.value === 0) {
-    // empty cell or previously picked-up cell: create new token
+  if (!data || data.value === 0) {
     const centerLat = CLASSROOM_LATLNG.lat + playerI * CELL_SIZE +
       CELL_SIZE / 2;
     const centerLng = CLASSROOM_LATLNG.lng + playerJ * CELL_SIZE +
       CELL_SIZE / 2;
     const center = leaflet.latLng(centerLat, centerLng);
-    const newMarker = leaflet
-      .marker(center, {
-        icon: leaflet.divIcon({
-          className: "token-label",
-          html:
-            `<div style="font-size:12px;color:#d22;font-weight:bold;">${heldToken}</div>`,
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
-        }),
-        interactive: false,
-      })
-      .addTo(map);
+    const newMarker = leaflet.marker(center, {
+      icon: leaflet.divIcon({
+        className: "token-label",
+        html:
+          `<div style="font-size:12px;color:#d22;font-weight:bold;">${heldToken}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      }),
+      interactive: false,
+    }).addTo(map);
     tokenMarkers.set(key, {
       marker: newMarker,
       value: heldToken,
@@ -224,12 +239,7 @@ addEventListener("keydown", (e) => {
     });
     heldToken = 0;
     updateUI();
-    return;
-  }
-
-  // cell with token: only merge if same value
-  const data = tokenMarkers.get(key)!;
-  if (data.value === heldToken) {
+  } else if (data.value === heldToken) {
     data.value *= 2;
     data.canPickup = false;
     data.marker?.setIcon(
@@ -244,11 +254,16 @@ addEventListener("keydown", (e) => {
     heldToken = 0;
     updateUI();
   }
+
+  sessionStorage.setItem("heldToken", heldToken.toString());
+  sessionStorage.setItem(
+    "grid",
+    JSON.stringify(Object.fromEntries(tokenMarkers)),
+  );
 });
 
 /* -------------------------- Detect leaving cell for pickup --------------------------*/
-let prevI = 0,
-  prevJ = 0;
+let prevI = 0, prevJ = 0;
 setInterval(() => {
   if (prevI !== playerI || prevJ !== playerJ) {
     const prevKey = `${prevI},${prevJ}`;
@@ -258,5 +273,9 @@ setInterval(() => {
     }
     prevI = playerI;
     prevJ = playerJ;
+    sessionStorage.setItem(
+      "grid",
+      JSON.stringify(Object.fromEntries(tokenMarkers)),
+    );
   }
 }, 100);
