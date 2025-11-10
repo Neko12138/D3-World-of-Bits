@@ -65,13 +65,23 @@ playerMarker.addTo(map);
 
 /* -------------------------- Initial UI state --------------------------*/
 let heldToken = 0; // number of tokens
-statusPanelDiv.innerHTML =
-  `<div><strong>Tokens owned:</strong> ${heldToken} (Total: $${
-    heldToken * TOKEN_VALUE
-  })</div>`;
+function updateUI() {
+  if (heldToken === 0) {
+    statusPanelDiv.innerHTML = `<div>No Token</div>`;
+  } else {
+    statusPanelDiv.innerHTML =
+      `<div>Token on Hand<br>Token: ${heldToken} Value: $${
+        heldToken * TOKEN_VALUE
+      }</div>`;
+  }
+}
+updateUI();
 
 /* -------------------------- Grid rendering with tokens --------------------------*/
-const tokenMarkers: Map<string, leaflet.Marker> = new Map();
+const tokenMarkers: Map<
+  string,
+  { marker: leaflet.Marker | null; value: number; canPickup: boolean }
+> = new Map();
 let playerI = 0;
 let playerJ = 0;
 let _playerCellMarker: leaflet.Marker | null = null;
@@ -110,7 +120,11 @@ function drawGrid(): void {
             interactive: false,
           })
           .addTo(map);
-        tokenMarkers.set(`${i},${j}`, tokenMarker);
+        tokenMarkers.set(`${i},${j}`, {
+          marker: tokenMarker,
+          value: 1,
+          canPickup: true,
+        });
       }
 
       // initial player location
@@ -152,17 +166,21 @@ function drawGrid(): void {
           })
           .addTo(map);
 
-        // collect token if player has none
+        // pick up token only if canPickup is true
         const key = `${i},${j}`;
-        if (tokenMarkers.has(key) && heldToken === 0) {
-          const marker = tokenMarkers.get(key)!;
-          heldToken = 1; // pick up only one token
-          statusPanelDiv.innerHTML =
-            `<div><strong>Tokens owned:</strong> ${heldToken} (Total: $${
-              heldToken * TOKEN_VALUE
-            })</div>`;
-          map.removeLayer(marker);
-          tokenMarkers.delete(key);
+        if (tokenMarkers.has(key)) {
+          const data = tokenMarkers.get(key)!;
+          if (heldToken === 0 && data.canPickup && data.value > 0) {
+            heldToken = data.value;
+            data.value = 0;
+            data.canPickup = false;
+            if (data.marker) map.removeLayer(data.marker);
+            data.marker = null;
+            updateUI();
+            if (heldToken * TOKEN_VALUE >= 80) {
+              alert("The first step to millionaire");
+            }
+          }
         }
       });
 
@@ -172,3 +190,73 @@ function drawGrid(): void {
 }
 
 drawGrid();
+
+/* -------------------------- Handle placing & merging --------------------------*/
+addEventListener("keydown", (e) => {
+  if (e.code !== "Space") return;
+  if (heldToken === 0) return;
+
+  const key = `${playerI},${playerJ}`;
+
+  if (!tokenMarkers.has(key) || tokenMarkers.get(key)!.value === 0) {
+    // empty cell or previously picked-up cell: create new token
+    const centerLat = CLASSROOM_LATLNG.lat + playerI * CELL_SIZE +
+      CELL_SIZE / 2;
+    const centerLng = CLASSROOM_LATLNG.lng + playerJ * CELL_SIZE +
+      CELL_SIZE / 2;
+    const center = leaflet.latLng(centerLat, centerLng);
+    const newMarker = leaflet
+      .marker(center, {
+        icon: leaflet.divIcon({
+          className: "token-label",
+          html:
+            `<div style="font-size:12px;color:#d22;font-weight:bold;">${heldToken}</div>`,
+          iconSize: [20, 20],
+          iconAnchor: [10, 10],
+        }),
+        interactive: false,
+      })
+      .addTo(map);
+    tokenMarkers.set(key, {
+      marker: newMarker,
+      value: heldToken,
+      canPickup: false,
+    });
+    heldToken = 0;
+    updateUI();
+    return;
+  }
+
+  // cell with token: only merge if same value
+  const data = tokenMarkers.get(key)!;
+  if (data.value === heldToken) {
+    data.value *= 2;
+    data.canPickup = false;
+    data.marker?.setIcon(
+      leaflet.divIcon({
+        className: "token-label",
+        html:
+          `<div style="font-size:12px;color:#d22;font-weight:bold;">${data.value}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      }),
+    );
+    heldToken = 0;
+    updateUI();
+  }
+});
+
+/* -------------------------- Detect leaving cell for pickup --------------------------*/
+let prevI = 0,
+  prevJ = 0;
+setInterval(() => {
+  if (prevI !== playerI || prevJ !== playerJ) {
+    const prevKey = `${prevI},${prevJ}`;
+    if (tokenMarkers.has(prevKey)) {
+      const data = tokenMarkers.get(prevKey)!;
+      if (data.value > 0) data.canPickup = true;
+    }
+    prevI = playerI;
+    prevJ = playerJ;
+  }
+}, 100);

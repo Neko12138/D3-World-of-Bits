@@ -45,10 +45,10 @@ Key gameplay challenge: Players can collect and craft nearby tokens to create hi
 
 ##### 4. Crafting System
 
-- [ ] If player has a token, allow placing it on a cell with a token of equal value
-- [ ] On placement: remove both tokens and create a new token with double value
-- [ ] Update UI to reflect new token or empty hand
-- [ ] Detect and notify when player obtains a high-value token (e.g. 8 or 16)
+- [x] If player has a token, allow placing it on a cell with a token of equal value
+- [x] On placement: remove both tokens and create a new token with double value
+- [x] Update UI to reflect new token or empty hand
+- [x] Detect and notify when player obtains a high-value token (e.g. 8 or 16)
 
 ##### 5. Persistence & Determinism
 
