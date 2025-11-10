@@ -23,9 +23,9 @@ Key gameplay challenge: Players can collect and craft nearby tokens to create hi
 
 - [x] Backup existing `main.ts` to `reference.ts` for future reference
 - [x] Clear all contents in `main.ts`
-- [ ] Import and initialize a basic Leaflet map centered on the classroom location
-- [ ] Add player marker to indicate the fixed player position
-- [ ] Lock map panning/zoom to reasonable limits (player-centered view)
+- [x] Import and initialize a basic Leaflet map centered on the classroom location
+- [x] Add player marker to indicate the fixed player position
+- [x] Lock map panning/zoom to reasonable limits (player-centered view)
 
 ##### 2. Grid Rendering
 
