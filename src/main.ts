@@ -24,43 +24,18 @@ const CLASSROOM_LATLNG = leaflet.latLng(
   36.997936938057016,
   -122.05703507501151,
 );
-
 const GAMEPLAY_ZOOM_LEVEL = 19;
 const CELL_SIZE = 0.0001;
-const GRID_RADIUS = 8;
 const TOKEN_PROBABILITY = 0.25;
-const INTERACTION_RADIUS = 3;
 const TOKEN_VALUE = 5; // $5 per token
-
-/* -------------------------- Persistence --------------------------*/
-// load heldToken from session
-let heldToken = Number(sessionStorage.getItem("heldToken") || 0);
-
-function updateUI() {
-  if (heldToken === 0) {
-    statusPanelDiv.innerHTML = `<div>No Token</div>`;
-  } else {
-    statusPanelDiv.innerHTML =
-      `<div>Token on Hand<br>Token: ${heldToken} Value: $${
-        heldToken * TOKEN_VALUE
-      }</div>`;
-  }
-}
-updateUI();
 
 /* -------------------------- Create Leaflet map --------------------------*/
 const map = leaflet.map(mapDiv, {
   center: CLASSROOM_LATLNG,
   zoom: GAMEPLAY_ZOOM_LEVEL,
-  minZoom: GAMEPLAY_ZOOM_LEVEL,
-  maxZoom: GAMEPLAY_ZOOM_LEVEL,
-  zoomControl: false,
-  scrollWheelZoom: false,
-  doubleClickZoom: false,
-  boxZoom: false,
-  touchZoom: false,
-  dragging: false,
-  keyboard: false,
+  zoomControl: true,
+  scrollWheelZoom: true,
+  dragging: true,
 });
 
 leaflet
@@ -71,69 +46,90 @@ leaflet
   })
   .addTo(map);
 
-/* -------------------------- Grid rendering with tokens --------------------------*/
+/* -------------------------- Persistence --------------------------*/
+let heldToken = Number(sessionStorage.getItem("heldToken") || 0);
+function updateUI() {
+  statusPanelDiv.innerHTML = `
+    <div>${
+    heldToken === 0
+      ? "No Token"
+      : `Token on Hand: ${heldToken} ($${heldToken * TOKEN_VALUE})`
+  }</div>
+    <div>Press SPACE to place token</div>
+    <div>Selected Direction: ${selectedDirection ?? "-"}</div>
+    <div>Selected Steps: ${selectedSteps ?? "-"}</div>
+  `;
+}
+
+/* -------------------------- Grid and Tokens --------------------------*/
 interface TokenData {
   marker: leaflet.Marker | null;
   value: number;
   canPickup: boolean;
+  rect?: leaflet.Rectangle; // optional cell rectangle
 }
-
 const tokenMarkers: Map<string, TokenData> = new Map();
 let playerI = 0;
 let playerJ = 0;
-let _playerCellMarker: leaflet.Marker | null = null;
+let _playerMarker: leaflet.Marker | null = null;
 
-// load grid state from sessionStorage
+// load saved grid
 const savedGrid = JSON.parse(sessionStorage.getItem("grid") || "{}") as Record<
   string,
   TokenData
 >;
+for (const key in savedGrid) tokenMarkers.set(key, savedGrid[key]);
 
-function drawGrid(): void {
-  for (let i = -GRID_RADIUS; i <= GRID_RADIUS; i++) {
-    for (let j = -GRID_RADIUS; j <= GRID_RADIUS; j++) {
+/* -------------------------- Dynamic Grid Rendering --------------------------*/
+function updateGrid() {
+  const bounds = map.getBounds();
+  const visibleRadiusLat = Math.ceil(
+    (bounds.getNorth() - bounds.getSouth()) / CELL_SIZE / 2,
+  );
+  const visibleRadiusLng = Math.ceil(
+    (bounds.getEast() - bounds.getWest()) / CELL_SIZE / 2,
+  );
+
+  const centerI = playerI;
+  const centerJ = playerJ;
+
+  for (
+    let i = centerI - visibleRadiusLat;
+    i <= centerI + visibleRadiusLat;
+    i++
+  ) {
+    for (
+      let j = centerJ - visibleRadiusLng;
+      j <= centerJ + visibleRadiusLng;
+      j++
+    ) {
+      const key = `${i},${j}`;
       const lat1 = CLASSROOM_LATLNG.lat + i * CELL_SIZE;
       const lng1 = CLASSROOM_LATLNG.lng + j * CELL_SIZE;
       const lat2 = lat1 + CELL_SIZE;
       const lng2 = lng1 + CELL_SIZE;
-      const bounds = leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
-      const key = `${i},${j}`;
+      const cellBounds = leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
 
-      const rect = leaflet.rectangle(bounds, {
-        color: "#888",
+      // skip if already has rectangle
+      if (tokenMarkers.get(key)?.rect) continue;
+
+      // draw black rectangle border
+      const rect = leaflet.rectangle(cellBounds, {
+        color: "#000",
         weight: 1,
         fillOpacity: 0.05,
-      });
-      rect.addTo(map);
+      }).addTo(map);
 
-      // restore or generate token
-      let tokenData: TokenData;
-      if (savedGrid[key]) {
-        tokenData = savedGrid[key];
-        if (tokenData.value > 0 && tokenData.marker === null) {
-          const center = bounds.getCenter();
-          const marker = leaflet.marker(center, {
-            icon: leaflet.divIcon({
-              className: "token-label",
-              html:
-                `<div style="font-size:12px;color:#d22;font-weight:bold;">${tokenData.value}</div>`,
-              iconSize: [20, 20],
-              iconAnchor: [10, 10],
-            }),
-            interactive: false,
-          }).addTo(map);
-          tokenData.marker = marker;
-        }
-      } else {
-        const roll = luck(`${i},${j},token`);
-        const hasToken = roll < TOKEN_PROBABILITY;
-        tokenData = {
+      if (!tokenMarkers.has(key)) {
+        const hasToken = luck(`${i},${j},token`) < TOKEN_PROBABILITY;
+        const tokenData: TokenData = {
           marker: null,
           value: hasToken ? 1 : 0,
           canPickup: true,
+          rect,
         };
         if (hasToken) {
-          const center = bounds.getCenter();
+          const center = cellBounds.getCenter();
           const marker = leaflet.marker(center, {
             icon: leaflet.divIcon({
               className: "token-label",
@@ -146,82 +142,112 @@ function drawGrid(): void {
           }).addTo(map);
           tokenData.marker = marker;
         }
+        tokenMarkers.set(key, tokenData);
+      } else {
+        tokenMarkers.get(key)!.rect = rect;
       }
-      tokenMarkers.set(key, tokenData);
-
-      // initial player location
-      if (i === 0 && j === 0) {
-        const center = bounds.getCenter();
-        _playerCellMarker = leaflet.marker(center, {
-          icon: leaflet.divIcon({
-            className: "player-label",
-            html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-          }),
-          interactive: false,
-        }).addTo(map);
-      }
-
-      // handle movement & token collection
-      rect.on("click", () => {
-        const distI = Math.abs(i - playerI);
-        const distJ = Math.abs(j - playerJ);
-        if (distI > INTERACTION_RADIUS || distJ > INTERACTION_RADIUS) return;
-
-        playerI = i;
-        playerJ = j;
-        if (_playerCellMarker) map.removeLayer(_playerCellMarker);
-        const center = bounds.getCenter();
-        _playerCellMarker = leaflet.marker(center, {
-          icon: leaflet.divIcon({
-            className: "player-label",
-            html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
-            iconSize: [20, 20],
-            iconAnchor: [10, 10],
-          }),
-          interactive: false,
-        }).addTo(map);
-
-        const data = tokenMarkers.get(key)!;
-        if (heldToken === 0 && data.canPickup && data.value > 0) {
-          heldToken = data.value;
-          data.value = 0;
-          data.canPickup = false;
-          if (data.marker) map.removeLayer(data.marker);
-          data.marker = null;
-          updateUI();
-          sessionStorage.setItem("heldToken", heldToken.toString());
-        }
-
-        // save grid state
-        sessionStorage.setItem(
-          "grid",
-          JSON.stringify(Object.fromEntries(tokenMarkers)),
-        );
-      });
-
-      rect.bindTooltip(`Cell (${i}, ${j})`, { permanent: false });
     }
   }
 }
 
-drawGrid();
+/* -------------------------- Player Marker --------------------------*/
+function updatePlayerMarker() {
+  const lat = CLASSROOM_LATLNG.lat + playerI * CELL_SIZE + CELL_SIZE / 2;
+  const lng = CLASSROOM_LATLNG.lng + playerJ * CELL_SIZE + CELL_SIZE / 2;
+  const latLng = leaflet.latLng(lat, lng);
 
-/* -------------------------- Handle placing & merging --------------------------*/
+  if (_playerMarker) map.removeLayer(_playerMarker);
+  _playerMarker = leaflet.marker(latLng, {
+    icon: leaflet.divIcon({
+      className: "player-label",
+      html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
+    }),
+    interactive: false,
+  }).addTo(map);
+
+  map.panTo(latLng);
+}
+
+/* -------------------------- Direction & Step Controls --------------------------*/
+let selectedDirection: string | null = null;
+let selectedSteps: number | null = null;
+
+const directionDiv = document.createElement("div");
+controlPanelDiv.append(directionDiv);
+["North", "South", "East", "West"].forEach((dir) => {
+  const btn = document.createElement("button");
+  btn.textContent = dir;
+  btn.addEventListener("click", () => {
+    selectedDirection = dir;
+    updateUI();
+  });
+  directionDiv.append(btn);
+});
+
+const stepsDiv = document.createElement("div");
+controlPanelDiv.append(stepsDiv);
+[1, 2, 3].forEach((step) => {
+  const btn = document.createElement("button");
+  btn.textContent = step.toString();
+  btn.addEventListener("click", () => {
+    selectedSteps = step;
+    movePlayerSelected();
+    selectedDirection = null;
+    selectedSteps = null;
+    updateUI();
+  });
+  stepsDiv.append(btn);
+});
+
+/* -------------------------- Move Player --------------------------*/
+function movePlayerSelected() {
+  if (!selectedDirection || !selectedSteps) return;
+
+  switch (selectedDirection) {
+    case "North":
+      playerI -= selectedSteps;
+      break;
+    case "South":
+      playerI += selectedSteps;
+      break;
+    case "East":
+      playerJ += selectedSteps;
+      break;
+    case "West":
+      playerJ -= selectedSteps;
+      break;
+  }
+
+  updateGrid();
+  updatePlayerMarker();
+
+  // auto pickup token
+  const key = `${playerI},${playerJ}`;
+  const data = tokenMarkers.get(key);
+  if (data && data.canPickup && data.value > 0 && heldToken === 0) {
+    heldToken = data.value;
+    data.value = 0;
+    data.canPickup = false;
+    if (data.marker) map.removeLayer(data.marker);
+    data.marker = null;
+    updateUI();
+  }
+}
+
+/* -------------------------- Place Token --------------------------*/
 addEventListener("keydown", (e) => {
-  if (e.code !== "Space") return;
-  if (heldToken === 0) return;
+  if (e.code !== "Space" || heldToken === 0) return;
 
   const key = `${playerI},${playerJ}`;
-  const data = tokenMarkers.get(key)!;
+  const data = tokenMarkers.get(key);
+
+  const lat = CLASSROOM_LATLNG.lat + playerI * CELL_SIZE + CELL_SIZE / 2;
+  const lng = CLASSROOM_LATLNG.lng + playerJ * CELL_SIZE + CELL_SIZE / 2;
+  const center = leaflet.latLng(lat, lng);
 
   if (!data || data.value === 0) {
-    const centerLat = CLASSROOM_LATLNG.lat + playerI * CELL_SIZE +
-      CELL_SIZE / 2;
-    const centerLng = CLASSROOM_LATLNG.lng + playerJ * CELL_SIZE +
-      CELL_SIZE / 2;
-    const center = leaflet.latLng(centerLat, centerLng);
     const newMarker = leaflet.marker(center, {
       icon: leaflet.divIcon({
         className: "token-label",
@@ -238,7 +264,6 @@ addEventListener("keydown", (e) => {
       canPickup: false,
     });
     heldToken = 0;
-    updateUI();
   } else if (data.value === heldToken) {
     data.value *= 2;
     data.canPickup = false;
@@ -252,9 +277,9 @@ addEventListener("keydown", (e) => {
       }),
     );
     heldToken = 0;
-    updateUI();
   }
 
+  updateUI();
   sessionStorage.setItem("heldToken", heldToken.toString());
   sessionStorage.setItem(
     "grid",
@@ -262,15 +287,13 @@ addEventListener("keydown", (e) => {
   );
 });
 
-/* -------------------------- Detect leaving cell for pickup --------------------------*/
+/* -------------------------- Auto-pickup on leaving cell --------------------------*/
 let prevI = 0, prevJ = 0;
 setInterval(() => {
   if (prevI !== playerI || prevJ !== playerJ) {
-    const prevKey = `${prevI},${prevJ}`;
-    if (tokenMarkers.has(prevKey)) {
-      const data = tokenMarkers.get(prevKey)!;
-      if (data.value > 0) data.canPickup = true;
-    }
+    const key = `${prevI},${prevJ}`;
+    const data = tokenMarkers.get(key);
+    if (data && data.value > 0) data.canPickup = true;
     prevI = playerI;
     prevJ = playerJ;
     sessionStorage.setItem(
@@ -279,3 +302,13 @@ setInterval(() => {
     );
   }
 }, 100);
+
+/* -------------------------- Update Grid on Map Move --------------------------*/
+map.on("moveend", () => {
+  updateGrid();
+});
+
+/* -------------------------- Initial Render --------------------------*/
+updateGrid();
+updatePlayerMarker();
+updateUI();

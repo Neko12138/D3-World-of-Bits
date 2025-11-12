@@ -65,9 +65,9 @@ Key gameplay challenge: Allow players to explore a memoryless, earth-scale envir
 
 ##### 1. Map & Movement Controls
 
-- [ ] Add directional buttons (North, South, East, West) to simulate local player movement
-- [ ] Implement map panning and zooming while keeping the view centered on the player or manual scroll position
-- [ ] Use Leaflet’s moveend event to detect when map movement has finished
+- [x] Add directional buttons (North, South, East, West) to simulate local player movement
+- [x] Implement map panning and zooming while keeping the view centered on the player or manual scroll position
+- [x] Use Leaflet’s moveend event to detect when map movement has finished
 
 ##### 2. Global Coordinate & Cell System
 
