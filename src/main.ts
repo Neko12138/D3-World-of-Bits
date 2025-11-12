@@ -71,13 +71,6 @@ let playerI = 0;
 let playerJ = 0;
 let _playerMarker: leaflet.Marker | null = null;
 
-// load saved grid
-const savedGrid = JSON.parse(sessionStorage.getItem("grid") || "{}") as Record<
-  string,
-  TokenData
->;
-for (const key in savedGrid) tokenMarkers.set(key, savedGrid[key]);
-
 /* -------------------------- Coordinate Conversion --------------------------*/
 function latLngToCell(lat: number, lng: number): [number, number] {
   const i = Math.floor((lat - ORIGIN_LATLNG.lat) / CELL_SIZE);
@@ -103,12 +96,8 @@ function updateGrid() {
     (bounds.getEast() - bounds.getWest()) / CELL_SIZE / 2,
   );
 
-  // map center cell
   const mapCenter = map.getCenter();
-  const [mapCenterI, mapCenterJ] = latLngToCell(mapCenter.lat, mapCenter.lng);
-
-  const centerI = mapCenterI;
-  const centerJ = mapCenterJ;
+  const [centerI, centerJ] = latLngToCell(mapCenter.lat, mapCenter.lng);
 
   const visibleKeys = new Set<string>();
   for (
@@ -125,21 +114,16 @@ function updateGrid() {
     }
   }
 
+  // remove cells out of view
   for (const [key, data] of tokenMarkers) {
     if (!visibleKeys.has(key)) {
-      // remove rectangle from map
-      if (data.rect) {
-        map.removeLayer(data.rect);
-        data.rect = undefined;
-      }
-      // remove marker if not held by player
-      if (data.marker) {
-        map.removeLayer(data.marker);
-        data.marker = null;
-      }
+      if (data.rect) map.removeLayer(data.rect);
+      if (data.marker) map.removeLayer(data.marker);
+      tokenMarkers.delete(key);
     }
   }
 
+  // render visible cells
   for (
     let i = centerI - visibleRadiusLat;
     i <= centerI + visibleRadiusLat;
@@ -151,44 +135,40 @@ function updateGrid() {
       j++
     ) {
       const key = `${i},${j}`;
+
+      // reuse rect & marker if cell exists
+      const existingData = tokenMarkers.get(key);
+      if (existingData) continue;
+
+      // create new cell rectangle
       const cellBounds = cellToLatLng(i, j);
-
-      // already rendered rectangle
-      if (tokenMarkers.get(key)?.rect) continue;
-
-      // black grid border
       const rect = leaflet.rectangle(cellBounds, {
         color: "#000",
         weight: 1,
         fillOpacity: 0.05,
       }).addTo(map);
 
-      if (!tokenMarkers.has(key)) {
-        const hasToken = luck(`${i},${j},token`) < TOKEN_PROBABILITY;
-        const tokenData: TokenData = {
-          marker: null,
-          value: hasToken ? 1 : 0,
-          canPickup: true,
-          rect,
-        };
-        if (hasToken) {
-          const center = cellBounds.getCenter();
-          const marker = leaflet.marker(center, {
-            icon: leaflet.divIcon({
-              className: "token-label",
-              html:
-                `<div style="font-size:12px;color:#d22;font-weight:bold;">1</div>`,
-              iconSize: [20, 20],
-              iconAnchor: [10, 10],
-            }),
-            interactive: false,
-          }).addTo(map);
-          tokenData.marker = marker;
-        }
-        tokenMarkers.set(key, tokenData);
-      } else {
-        tokenMarkers.get(key)!.rect = rect;
+      // generate token randomly
+      const hasToken = luck(`${i},${j},token`) < TOKEN_PROBABILITY;
+      const value = hasToken ? 1 : 0;
+
+      let marker: leaflet.Marker | null = null;
+      if (value > 0) {
+        const center = cellBounds.getCenter();
+        marker = leaflet.marker(center, {
+          icon: leaflet.divIcon({
+            className: "token-label",
+            html:
+              `<div style="font-size:12px;color:#d22;font-weight:bold;">${value}</div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10],
+          }),
+          interactive: false,
+        }).addTo(map);
       }
+
+      // store cell data
+      tokenMarkers.set(key, { rect, marker, value, canPickup: true });
     }
   }
 }
@@ -283,7 +263,6 @@ addEventListener("keydown", (e) => {
 
   const key = `${playerI},${playerJ}`;
   const data = tokenMarkers.get(key);
-
   const center = cellToLatLng(playerI, playerJ).getCenter();
 
   if (!data || data.value === 0) {
@@ -321,15 +300,10 @@ addEventListener("keydown", (e) => {
 
   updateUI();
   sessionStorage.setItem("heldToken", heldToken.toString());
-  sessionStorage.setItem(
-    "grid",
-    JSON.stringify(Object.fromEntries(tokenMarkers)),
-  );
 });
 
 /* -------------------------- Auto-pickup on leaving cell --------------------------*/
-let prevI = 0,
-  prevJ = 0;
+let prevI = 0, prevJ = 0;
 setInterval(() => {
   if (prevI !== playerI || prevJ !== playerJ) {
     const key = `${prevI},${prevJ}`;
@@ -337,10 +311,6 @@ setInterval(() => {
     if (data && data.value > 0) data.canPickup = true;
     prevI = playerI;
     prevJ = playerJ;
-    sessionStorage.setItem(
-      "grid",
-      JSON.stringify(Object.fromEntries(tokenMarkers)),
-    );
   }
 }, 100);
 

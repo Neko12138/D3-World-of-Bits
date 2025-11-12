@@ -83,9 +83,9 @@ Key gameplay challenge: Allow players to explore a memoryless, earth-scale envir
 
 ##### 4. Interaction & Memoryless Behavior
 
-- [ ] Restrict player interaction to nearby cells
-- [ ] Make cells “memoryless” — reset their contents once they leave the visible area
-- [ ] Allow players to repeatedly collect tokens by moving in and out of visible cell ranges
+- [x] Restrict player interaction to nearby cells
+- [x] Make cells “memoryless” — reset their contents once they leave the visible area
+- [x] Allow players to repeatedly collect tokens by moving in and out of visible cell ranges
 
 ##### 5. Crafting & Victory Condition
 
