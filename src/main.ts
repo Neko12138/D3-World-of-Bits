@@ -32,8 +32,8 @@ const map = leaflet.map(mapDiv, {
   center: ORIGIN_LATLNG,
   zoom: GAMEPLAY_ZOOM_LEVEL,
   zoomControl: true,
-  scrollWheelZoom: true, // enable zoom with mouse wheel
-  dragging: true, // enable map dragging
+  scrollWheelZoom: true,
+  dragging: true,
 });
 
 leaflet
@@ -64,7 +64,7 @@ interface TokenData {
   marker: leaflet.Marker | null;
   value: number;
   canPickup: boolean;
-  rect?: leaflet.Rectangle;
+  rect: leaflet.Rectangle | undefined;
 }
 const tokenMarkers: Map<string, TokenData> = new Map();
 let playerI = 0;
@@ -93,7 +93,7 @@ function cellToLatLng(i: number, j: number): leaflet.LatLngBounds {
   return leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
 }
 
-/* -------------------------- Dynamic Grid Rendering --------------------------*/
+//* -------------------------- Dynamic Grid Rendering --------------------------*/
 function updateGrid() {
   const bounds = map.getBounds();
   const visibleRadiusLat = Math.ceil(
@@ -103,16 +103,42 @@ function updateGrid() {
     (bounds.getEast() - bounds.getWest()) / CELL_SIZE / 2,
   );
 
-  // Use the map center to determine which cells are visible.
-  // This uses the latLngToCell helper so the function is actually referenced.
+  // map center cell
   const mapCenter = map.getCenter();
   const [mapCenterI, mapCenterJ] = latLngToCell(mapCenter.lat, mapCenter.lng);
 
-  // You can choose to center grid on the map center (mapCenterI/mapCenterJ)
-  // or on playerI/playerJ. Currently we prefer the map center so the grid
-  // matches what the user currently sees.
   const centerI = mapCenterI;
   const centerJ = mapCenterJ;
+
+  const visibleKeys = new Set<string>();
+  for (
+    let i = centerI - visibleRadiusLat;
+    i <= centerI + visibleRadiusLat;
+    i++
+  ) {
+    for (
+      let j = centerJ - visibleRadiusLng;
+      j <= centerJ + visibleRadiusLng;
+      j++
+    ) {
+      visibleKeys.add(`${i},${j}`);
+    }
+  }
+
+  for (const [key, data] of tokenMarkers) {
+    if (!visibleKeys.has(key)) {
+      // remove rectangle from map
+      if (data.rect) {
+        map.removeLayer(data.rect);
+        data.rect = undefined;
+      }
+      // remove marker if not held by player
+      if (data.marker) {
+        map.removeLayer(data.marker);
+        data.marker = null;
+      }
+    }
+  }
 
   for (
     let i = centerI - visibleRadiusLat;
@@ -127,6 +153,7 @@ function updateGrid() {
       const key = `${i},${j}`;
       const cellBounds = cellToLatLng(i, j);
 
+      // already rendered rectangle
       if (tokenMarkers.get(key)?.rect) continue;
 
       // black grid border
@@ -274,6 +301,7 @@ addEventListener("keydown", (e) => {
       marker: newMarker,
       value: heldToken,
       canPickup: false,
+      rect: undefined,
     });
     heldToken = 0;
   } else if (data.value === heldToken) {
@@ -300,7 +328,8 @@ addEventListener("keydown", (e) => {
 });
 
 /* -------------------------- Auto-pickup on leaving cell --------------------------*/
-let prevI = 0, prevJ = 0;
+let prevI = 0,
+  prevJ = 0;
 setInterval(() => {
   if (prevI !== playerI || prevJ !== playerJ) {
     const key = `${prevI},${prevJ}`;

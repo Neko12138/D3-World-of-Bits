@@ -77,9 +77,9 @@ Key gameplay challenge: Allow players to explore a memoryless, earth-scale envir
 
 ##### 3. Dynamic Cell Rendering
 
-- [ ] Generate and display all visible cells within the current map bounds
-- [ ] Spawn new cells when they enter the visible area and remove cells when they leave it
-- [ ] Ensure the visible area always remains fully covered by grid cells
+- [x] Generate and display all visible cells within the current map bounds
+- [x] Spawn new cells when they enter the visible area and remove cells when they leave it
+- [x] Ensure the visible area always remains fully covered by grid cells
 
 ##### 4. Interaction & Memoryless Behavior
 
