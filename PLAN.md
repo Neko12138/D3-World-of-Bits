@@ -12,12 +12,12 @@ Technologies
 
 ## Assignments
 
-### D3.a: Core Mechanics
+### D3.a Core Mechanics
 
 Key technical challenge: Implement a deterministic map-based system using Leaflet where each grid cell’s content (token presence and value) is visible and consistent across page loads.\
 Key gameplay challenge: Players can collect and craft nearby tokens to create higher-value ones, with clear inventory feedback and limited interaction range.
 
-#### Steps
+#### D3.a Steps
 
 ##### 1. Setup & Map Initialization
 
@@ -55,3 +55,40 @@ Key gameplay challenge: Players can collect and craft nearby tokens to create hi
 - [x] Ensure token spawning is deterministic (Luck function or seeded hash)
 - [x] Ensure cell contents are consistent across page reloads
 - [x] Keep player inventory persistent during a session
+
+### D3.b Globe-spanning Gameplay
+
+Key technical challenge: Implement a global, coordinate-based grid system in Leaflet that dynamically spawns and despawns cells as the player moves or pans the map.
+Key gameplay challenge: Allow players to explore a memoryless, earth-scale environment, collecting and crafting tokens across dynamically generated cells.
+
+#### D3.b Steps
+
+##### 1. Map & Movement Controls
+
+- [ ] Add directional buttons (North, South, East, West) to simulate local player movement
+- [ ] Implement map panning and zooming while keeping the view centered on the player or manual scroll position
+- [ ] Use Leaflet’s moveend event to detect when map movement has finished
+
+##### 2. Global Coordinate & Cell System
+
+- [ ] Define a grid cell data structure to represent global cells
+- [ ] Implement functions to convert latitude–longitude pairs to cell identifiers, and vice versa
+- [ ] Anchor the coordinate system at Null Island (0° latitude, 0° longitude)
+
+##### 3. Dynamic Cell Rendering
+
+- [ ] Generate and display all visible cells within the current map bounds
+- [ ] Spawn new cells when they enter the visible area and remove cells when they leave it
+- [ ] Ensure the visible area always remains fully covered by grid cells
+
+##### 4. Interaction & Memoryless Behavior
+
+- [ ] Restrict player interaction to nearby cells
+- [ ] Make cells “memoryless” — reset their contents once they leave the visible area
+- [ ] Allow players to repeatedly collect tokens by moving in and out of visible cell ranges
+
+##### 5. Crafting & Victory Condition
+
+- [ ] Extend the existing token collection and crafting mechanics across the global map
+- [ ] Define a higher-value crafting goal
+- [ ] Display a clear victory message once the target token value is reached
