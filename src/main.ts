@@ -20,27 +20,25 @@ statusPanelDiv.id = "statusPanel";
 document.body.append(statusPanelDiv);
 
 /* -------------------------- Constants / Gameplay params --------------------------*/
-const CLASSROOM_LATLNG = leaflet.latLng(
-  36.997936938057016,
-  -122.05703507501151,
-);
-const GAMEPLAY_ZOOM_LEVEL = 19;
-const CELL_SIZE = 0.0001;
+// Anchor the coordinate system at Null Island (0° latitude, 0° longitude)
+const ORIGIN_LATLNG = leaflet.latLng(0, 0);
+const GAMEPLAY_ZOOM_LEVEL = 4; // smaller zoom to show global area
+const CELL_SIZE = 1; // 1 degree grid cell (suitable for global scale)
 const TOKEN_PROBABILITY = 0.25;
 const TOKEN_VALUE = 5; // $5 per token
 
 /* -------------------------- Create Leaflet map --------------------------*/
 const map = leaflet.map(mapDiv, {
-  center: CLASSROOM_LATLNG,
+  center: ORIGIN_LATLNG,
   zoom: GAMEPLAY_ZOOM_LEVEL,
   zoomControl: true,
-  scrollWheelZoom: true,
-  dragging: true,
+  scrollWheelZoom: true, // enable zoom with mouse wheel
+  dragging: true, // enable map dragging
 });
 
 leaflet
   .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
+    maxZoom: 10,
     attribution:
       '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   })
@@ -66,7 +64,7 @@ interface TokenData {
   marker: leaflet.Marker | null;
   value: number;
   canPickup: boolean;
-  rect?: leaflet.Rectangle; // optional cell rectangle
+  rect?: leaflet.Rectangle;
 }
 const tokenMarkers: Map<string, TokenData> = new Map();
 let playerI = 0;
@@ -80,6 +78,21 @@ const savedGrid = JSON.parse(sessionStorage.getItem("grid") || "{}") as Record<
 >;
 for (const key in savedGrid) tokenMarkers.set(key, savedGrid[key]);
 
+/* -------------------------- Coordinate Conversion --------------------------*/
+function latLngToCell(lat: number, lng: number): [number, number] {
+  const i = Math.floor((lat - ORIGIN_LATLNG.lat) / CELL_SIZE);
+  const j = Math.floor((lng - ORIGIN_LATLNG.lng) / CELL_SIZE);
+  return [i, j];
+}
+
+function cellToLatLng(i: number, j: number): leaflet.LatLngBounds {
+  const lat1 = ORIGIN_LATLNG.lat + i * CELL_SIZE;
+  const lng1 = ORIGIN_LATLNG.lng + j * CELL_SIZE;
+  const lat2 = lat1 + CELL_SIZE;
+  const lng2 = lng1 + CELL_SIZE;
+  return leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
+}
+
 /* -------------------------- Dynamic Grid Rendering --------------------------*/
 function updateGrid() {
   const bounds = map.getBounds();
@@ -90,8 +103,16 @@ function updateGrid() {
     (bounds.getEast() - bounds.getWest()) / CELL_SIZE / 2,
   );
 
-  const centerI = playerI;
-  const centerJ = playerJ;
+  // Use the map center to determine which cells are visible.
+  // This uses the latLngToCell helper so the function is actually referenced.
+  const mapCenter = map.getCenter();
+  const [mapCenterI, mapCenterJ] = latLngToCell(mapCenter.lat, mapCenter.lng);
+
+  // You can choose to center grid on the map center (mapCenterI/mapCenterJ)
+  // or on playerI/playerJ. Currently we prefer the map center so the grid
+  // matches what the user currently sees.
+  const centerI = mapCenterI;
+  const centerJ = mapCenterJ;
 
   for (
     let i = centerI - visibleRadiusLat;
@@ -104,16 +125,11 @@ function updateGrid() {
       j++
     ) {
       const key = `${i},${j}`;
-      const lat1 = CLASSROOM_LATLNG.lat + i * CELL_SIZE;
-      const lng1 = CLASSROOM_LATLNG.lng + j * CELL_SIZE;
-      const lat2 = lat1 + CELL_SIZE;
-      const lng2 = lng1 + CELL_SIZE;
-      const cellBounds = leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
+      const cellBounds = cellToLatLng(i, j);
 
-      // skip if already has rectangle
       if (tokenMarkers.get(key)?.rect) continue;
 
-      // draw black rectangle border
+      // black grid border
       const rect = leaflet.rectangle(cellBounds, {
         color: "#000",
         weight: 1,
@@ -152,22 +168,20 @@ function updateGrid() {
 
 /* -------------------------- Player Marker --------------------------*/
 function updatePlayerMarker() {
-  const lat = CLASSROOM_LATLNG.lat + playerI * CELL_SIZE + CELL_SIZE / 2;
-  const lng = CLASSROOM_LATLNG.lng + playerJ * CELL_SIZE + CELL_SIZE / 2;
-  const latLng = leaflet.latLng(lat, lng);
-
+  const center = cellToLatLng(playerI, playerJ).getCenter();
   if (_playerMarker) map.removeLayer(_playerMarker);
-  _playerMarker = leaflet.marker(latLng, {
+  _playerMarker = leaflet.marker(center, {
     icon: leaflet.divIcon({
       className: "player-label",
-      html: `<div style="font-size:14px;color:#00a;">🧍</div>`,
+      html: `<div style="font-size:16px;color:#00a;">🧍</div>`,
       iconSize: [20, 20],
       iconAnchor: [10, 10],
     }),
     interactive: false,
   }).addTo(map);
 
-  map.panTo(latLng);
+  // recenter map after each move
+  map.panTo(center);
 }
 
 /* -------------------------- Direction & Step Controls --------------------------*/
@@ -243,9 +257,7 @@ addEventListener("keydown", (e) => {
   const key = `${playerI},${playerJ}`;
   const data = tokenMarkers.get(key);
 
-  const lat = CLASSROOM_LATLNG.lat + playerI * CELL_SIZE + CELL_SIZE / 2;
-  const lng = CLASSROOM_LATLNG.lng + playerJ * CELL_SIZE + CELL_SIZE / 2;
-  const center = leaflet.latLng(lat, lng);
+  const center = cellToLatLng(playerI, playerJ).getCenter();
 
   if (!data || data.value === 0) {
     const newMarker = leaflet.marker(center, {

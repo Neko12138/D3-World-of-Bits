@@ -71,9 +71,9 @@ Key gameplay challenge: Allow players to explore a memoryless, earth-scale envir
 
 ##### 2. Global Coordinate & Cell System
 
-- [ ] Define a grid cell data structure to represent global cells
-- [ ] Implement functions to convert latitude–longitude pairs to cell identifiers, and vice versa
-- [ ] Anchor the coordinate system at Null Island (0° latitude, 0° longitude)
+- [x] Define a grid cell data structure to represent global cells
+- [x] Implement functions to convert latitude–longitude pairs to cell identifiers, and vice versa
+- [x] Anchor the coordinate system at Null Island (0° latitude, 0° longitude)
 
 ##### 3. Dynamic Cell Rendering
 
