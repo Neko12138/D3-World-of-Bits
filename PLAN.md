@@ -89,6 +89,6 @@ Key gameplay challenge: Allow players to explore a memoryless, earth-scale envir
 
 ##### 5. Crafting & Victory Condition
 
-- [ ] Extend the existing token collection and crafting mechanics across the global map
-- [ ] Define a higher-value crafting goal
-- [ ] Display a clear victory message once the target token value is reached
+- [x] Extend the existing token collection and crafting mechanics across the global map
+- [x] Define a higher-value crafting goal
+- [x] Display a clear victory message once the target token value is reached

@@ -20,12 +20,12 @@ statusPanelDiv.id = "statusPanel";
 document.body.append(statusPanelDiv);
 
 /* -------------------------- Constants / Gameplay params --------------------------*/
-// Anchor the coordinate system at Null Island (0° latitude, 0° longitude)
 const ORIGIN_LATLNG = leaflet.latLng(0, 0);
-const GAMEPLAY_ZOOM_LEVEL = 4; // smaller zoom to show global area
-const CELL_SIZE = 1; // 1 degree grid cell (suitable for global scale)
+const GAMEPLAY_ZOOM_LEVEL = 6;
+const CELL_SIZE = 1;
 const TOKEN_PROBABILITY = 0.25;
-const TOKEN_VALUE = 5; // $5 per token
+const TOKEN_VALUE = 5;
+const CRAFTING_GOAL = 32; // Victory goal
 
 /* -------------------------- Create Leaflet map --------------------------*/
 const map = leaflet.map(mapDiv, {
@@ -86,7 +86,14 @@ function cellToLatLng(i: number, j: number): leaflet.LatLngBounds {
   return leaflet.latLngBounds([[lat1, lng1], [lat2, lng2]]);
 }
 
-//* -------------------------- Dynamic Grid Rendering --------------------------*/
+/* -------------------------- Crafting / Victory --------------------------*/
+function checkVictory() {
+  if (heldToken >= CRAFTING_GOAL) {
+    alert(`🎉 Victory! You have collected ${heldToken} tokens!`);
+  }
+}
+
+/* -------------------------- Dynamic Grid Rendering --------------------------*/
 function updateGrid() {
   const bounds = map.getBounds();
   const visibleRadiusLat = Math.ceil(
@@ -114,7 +121,7 @@ function updateGrid() {
     }
   }
 
-  // remove cells out of view
+  // remove cells out of view (memoryless)
   for (const [key, data] of tokenMarkers) {
     if (!visibleKeys.has(key)) {
       if (data.rect) map.removeLayer(data.rect);
@@ -135,12 +142,8 @@ function updateGrid() {
       j++
     ) {
       const key = `${i},${j}`;
+      if (tokenMarkers.has(key)) continue;
 
-      // reuse rect & marker if cell exists
-      const existingData = tokenMarkers.get(key);
-      if (existingData) continue;
-
-      // create new cell rectangle
       const cellBounds = cellToLatLng(i, j);
       const rect = leaflet.rectangle(cellBounds, {
         color: "#000",
@@ -148,7 +151,6 @@ function updateGrid() {
         fillOpacity: 0.05,
       }).addTo(map);
 
-      // generate token randomly
       const hasToken = luck(`${i},${j},token`) < TOKEN_PROBABILITY;
       const value = hasToken ? 1 : 0;
 
@@ -167,7 +169,6 @@ function updateGrid() {
         }).addTo(map);
       }
 
-      // store cell data
       tokenMarkers.set(key, { rect, marker, value, canPickup: true });
     }
   }
@@ -187,7 +188,6 @@ function updatePlayerMarker() {
     interactive: false,
   }).addTo(map);
 
-  // recenter map after each move
   map.panTo(center);
 }
 
@@ -244,16 +244,16 @@ function movePlayerSelected() {
   updateGrid();
   updatePlayerMarker();
 
-  // auto pickup token
+  // auto pickup token (memoryless & repeatable)
   const key = `${playerI},${playerJ}`;
   const data = tokenMarkers.get(key);
-  if (data && data.canPickup && data.value > 0 && heldToken === 0) {
-    heldToken = data.value;
+  if (data && data.value > 0) {
+    heldToken += data.value;
     data.value = 0;
-    data.canPickup = false;
     if (data.marker) map.removeLayer(data.marker);
     data.marker = null;
     updateUI();
+    checkVictory();
   }
 }
 
@@ -301,18 +301,6 @@ addEventListener("keydown", (e) => {
   updateUI();
   sessionStorage.setItem("heldToken", heldToken.toString());
 });
-
-/* -------------------------- Auto-pickup on leaving cell --------------------------*/
-let prevI = 0, prevJ = 0;
-setInterval(() => {
-  if (prevI !== playerI || prevJ !== playerJ) {
-    const key = `${prevI},${prevJ}`;
-    const data = tokenMarkers.get(key);
-    if (data && data.value > 0) data.canPickup = true;
-    prevI = playerI;
-    prevJ = playerJ;
-  }
-}, 100);
 
 /* -------------------------- Update Grid on Map Move --------------------------*/
 map.on("moveend", () => {
