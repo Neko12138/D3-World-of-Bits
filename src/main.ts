@@ -59,6 +59,16 @@ function updateUI() {
   `;
 }
 
+/* -------------------------- Modified Cells --------------------------*/
+// Cells only stored here if modified by player.
+interface CellState {
+  value: number; // token value (0 = empty)
+  canPickup: boolean; // whether player is allowed to pick it up
+}
+
+const modifiedCells: Map<string, CellState> = new Map();
+void modifiedCells; // intentionally reference to avoid "declared but never read"
+
 /* -------------------------- Grid and Tokens --------------------------*/
 interface TokenData {
   marker: leaflet.Marker | null;

@@ -103,8 +103,8 @@ Key gameplay challenge: Make the world feel persistent: tokens placed, removed, 
 
 ##### 1. Introduce a Persistent modifiedCells Map
 
-- [ ] Separate “real stored state” from “temporary rendered state.”
-- [ ] Unmodified cells remain completely “flyweight” and are regenerated with luck() whenever they appear.
+- [x] Separate “real stored state” from “temporary rendered state.”
+- [x] Unmodified cells remain completely “flyweight” and are regenerated with luck() whenever they appear.
 
 ##### 2. Implement Memento save/restore
 
