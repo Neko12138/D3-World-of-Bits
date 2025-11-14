@@ -1,12 +1,12 @@
 // @deno-types="npm:@types/leaflet"
 import leaflet from "leaflet";
-import luck from "./_luck.ts"; // deterministic token generation
+import luck from "./_luck.ts";
 
 import "leaflet/dist/leaflet.css";
 import "./_leafletWorkaround.ts";
 import "./style.css";
 
-/* -------------------------- control, map, status --------------------------*/
+/* -------------------------- Control, Map, Status --------------------------*/
 const controlPanelDiv = document.createElement("div");
 controlPanelDiv.id = "controlPanel";
 document.body.append(controlPanelDiv);
@@ -19,15 +19,15 @@ const statusPanelDiv = document.createElement("div");
 statusPanelDiv.id = "statusPanel";
 document.body.append(statusPanelDiv);
 
-/* -------------------------- Constants / Gameplay params --------------------------*/
+/* -------------------------- Constants --------------------------*/
 const ORIGIN_LATLNG = leaflet.latLng(0, 0);
 const GAMEPLAY_ZOOM_LEVEL = 6;
 const CELL_SIZE = 1;
 const TOKEN_PROBABILITY = 0.25;
 const TOKEN_VALUE = 5;
-const CRAFTING_GOAL = 32; // Victory goal
+const CRAFTING_GOAL = 32;
 
-/* -------------------------- Create Leaflet map --------------------------*/
+/* -------------------------- Map --------------------------*/
 const map = leaflet.map(mapDiv, {
   center: ORIGIN_LATLNG,
   zoom: GAMEPLAY_ZOOM_LEVEL,
@@ -46,28 +46,27 @@ leaflet
 
 /* -------------------------- Persistence --------------------------*/
 let heldToken = Number(sessionStorage.getItem("heldToken") || 0);
+
 function updateUI() {
   statusPanelDiv.innerHTML = `
-    <div>${
+    <span>${
     heldToken === 0
       ? "No Token"
-      : `Token on Hand: ${heldToken} ($${heldToken * TOKEN_VALUE})`
-  }</div>
-    <div>Press SPACE to place token</div>
-    <div>Selected Direction: ${selectedDirection ?? "-"}</div>
-    <div>Selected Steps: ${selectedSteps ?? "-"}</div>
+      : `Token: ${heldToken} ($${heldToken * TOKEN_VALUE})`
+  }</span>
+    <span>Press SPACE to place token</span>
+    <span>Direction: ${selectedDirection ?? "-"}</span>
+    <span>Steps: ${selectedSteps ?? "-"}</span>
   `;
 }
 
 /* -------------------------- Modified Cells --------------------------*/
-// Cells only stored here if modified by player.
 interface CellState {
-  value: number; // token value (0 = empty)
-  canPickup: boolean; // whether player is allowed to pick it up
+  value: number;
+  canPickup: boolean;
 }
-
 const modifiedCells: Map<string, CellState> = new Map();
-void modifiedCells; // intentionally reference to avoid "declared but never read"
+void modifiedCells;
 
 /* -------------------------- Grid and Tokens --------------------------*/
 interface TokenData {
@@ -103,7 +102,7 @@ function checkVictory() {
   }
 }
 
-/* -------------------------- Dynamic Grid Rendering --------------------------*/
+/* -------------------------- Grid Rendering --------------------------*/
 function updateGrid() {
   const bounds = map.getBounds();
   const visibleRadiusLat = Math.ceil(
@@ -112,7 +111,6 @@ function updateGrid() {
   const visibleRadiusLng = Math.ceil(
     (bounds.getEast() - bounds.getWest()) / CELL_SIZE / 2,
   );
-
   const mapCenter = map.getCenter();
   const [centerI, centerJ] = latLngToCell(mapCenter.lat, mapCenter.lng);
 
@@ -131,22 +129,17 @@ function updateGrid() {
     }
   }
 
-  //save state before removing
+  // Save state & remove out-of-view cells
   for (const [key, data] of tokenMarkers) {
     if (!visibleKeys.has(key)) {
-      modifiedCells.set(key, {
-        value: data.value,
-        canPickup: data.canPickup,
-      });
-
-      // remove visual objects
+      modifiedCells.set(key, { value: data.value, canPickup: data.canPickup });
       if (data.rect) map.removeLayer(data.rect);
       if (data.marker) map.removeLayer(data.marker);
       tokenMarkers.delete(key);
     }
   }
 
-  // render visible cells
+  // Render visible cells
   for (
     let i = centerI - visibleRadiusLat;
     i <= centerI + visibleRadiusLat;
@@ -168,27 +161,18 @@ function updateGrid() {
       }).addTo(map);
 
       const restored = modifiedCells.get(key);
-
-      let value: number;
-      let canPickup: boolean;
-
-      if (restored) {
-        value = restored.value;
-        canPickup = restored.canPickup;
-      } else {
-        const hasToken = luck(`${i},${j},token`) < TOKEN_PROBABILITY;
-        value = hasToken ? 1 : 0;
-        canPickup = true;
-      }
+      const value = restored
+        ? restored.value
+        : (luck(`${i},${j},token`) < TOKEN_PROBABILITY ? 1 : 0);
+      luck(`${i},${j},token`) < TOKEN_PROBABILITY ? 1 : 0;
+      const canPickup = restored ? restored.canPickup : true;
 
       let marker: leaflet.Marker | null = null;
       if (value > 0) {
-        const center = cellBounds.getCenter();
-        marker = leaflet.marker(center, {
+        marker = leaflet.marker(cellBounds.getCenter(), {
           icon: leaflet.divIcon({
             className: "token-label",
-            html:
-              `<div style="font-size:12px;color:#d22;font-weight:bold;">${value}</div>`,
+            html: `${value}`,
             iconSize: [20, 20],
             iconAnchor: [10, 10],
           }),
@@ -208,7 +192,7 @@ function updatePlayerMarker() {
   _playerMarker = leaflet.marker(center, {
     icon: leaflet.divIcon({
       className: "player-label",
-      html: `<div style="font-size:16px;color:#00a;">🧍</div>`,
+      html: `🧍`,
       iconSize: [20, 20],
       iconAnchor: [10, 10],
     }),
@@ -271,7 +255,6 @@ function movePlayerSelected() {
   updateGrid();
   updatePlayerMarker();
 
-  // auto pickup token (memoryless & repeatable)
   const key = `${playerI},${playerJ}`;
   const data = tokenMarkers.get(key);
   if (data && data.value > 0) {
@@ -296,8 +279,7 @@ addEventListener("keydown", (e) => {
     const newMarker = leaflet.marker(center, {
       icon: leaflet.divIcon({
         className: "token-label",
-        html:
-          `<div style="font-size:12px;color:#d22;font-weight:bold;">${heldToken}</div>`,
+        html: `${heldToken}`,
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       }),
@@ -316,8 +298,7 @@ addEventListener("keydown", (e) => {
     data.marker?.setIcon(
       leaflet.divIcon({
         className: "token-label",
-        html:
-          `<div style="font-size:12px;color:#d22;font-weight:bold;">${data.value}</div>`,
+        html: `${data.value}`,
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       }),
@@ -329,10 +310,8 @@ addEventListener("keydown", (e) => {
   sessionStorage.setItem("heldToken", heldToken.toString());
 });
 
-/* -------------------------- Update Grid on Map Move --------------------------*/
-map.on("moveend", () => {
-  updateGrid();
-});
+/* -------------------------- Map Move --------------------------*/
+map.on("moveend", updateGrid);
 
 /* -------------------------- Initial Render --------------------------*/
 updateGrid();

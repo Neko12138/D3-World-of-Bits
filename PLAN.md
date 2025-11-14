@@ -114,9 +114,9 @@ Key gameplay challenge: Make the world feel persistent: tokens placed, removed, 
 
 ##### 3. Refactor rendering: rebuild the screen purely from stored + procedural data
 
-- [ ] Rendering must be deterministic and stateless.
-- [ ] On each update remove any marker/rect not in visible range
-- [ ] Ensures scrolling the map always reconstructs correct world state.
+- [x] Rendering must be deterministic and stateless.
+- [x] On each update remove any marker/rect not in visible range
+- [x] Ensures scrolling the map always reconstructs correct world state.
 
 ##### 4. Integrate persistence into player actions
 
