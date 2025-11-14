@@ -92,3 +92,34 @@ Key gameplay challenge: Allow players to explore a memoryless, earth-scale envir
 - [x] Extend the existing token collection and crafting mechanics across the global map
 - [x] Define a higher-value crafting goal
 - [x] Display a clear victory message once the target token value is reached
+
+### D3.c Object Persistence
+
+Key technical challenge: Implement a lightweight, memory-efficient grid system where unmodified cells do not consume memory, while modified cells are automatically saved and restored using a Memento-style state storage.
+
+Key gameplay challenge: Make the world feel persistent: tokens placed, removed, or merged by the player should “stay changed” even after the player scrolls away and returns — while still allowing infinite map exploration.
+
+#### D3.c Steps
+
+##### 1. Introduce a Persistent modifiedCells Map
+
+- [ ] Separate “real stored state” from “temporary rendered state.”
+- [ ] Unmodified cells remain completely “flyweight” and are regenerated with luck() whenever they appear.
+
+##### 2. Implement Memento save/restore
+
+- [ ] Whenever a cell scrolls off-screen, save its state if it deviates from the default procedural state.
+- [ ] Restore logic (Memento restoration)
+- [ ] When a new cell enters view check if this cell exists in modifiedCells.
+
+##### 3. Refactor rendering: rebuild the screen purely from stored + procedural data
+
+- [ ] Rendering must be deterministic and stateless.
+- [ ] On each update remove any marker/rect not in visible range
+- [ ] Ensures scrolling the map always reconstructs correct world state.
+
+##### 4. Integrate persistence into player actions
+
+- [ ] Restrict player interaction to nearby cells
+- [ ] Make cells “memoryless” — reset their contents once they leave the visible area
+- [ ] Allow players to repeatedly collect tokens by moving in and out of visible cell ranges
