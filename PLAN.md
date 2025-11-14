@@ -120,6 +120,6 @@ Key gameplay challenge: Make the world feel persistent: tokens placed, removed, 
 
 ##### 4. Integrate persistence into player actions
 
-- [ ] Restrict player interaction to nearby cells
-- [ ] Make cells “memoryless” — reset their contents once they leave the visible area
-- [ ] Allow players to repeatedly collect tokens by moving in and out of visible cell ranges
+- [x] Any action that changes a cell must update modifiedCells.
+- [x] All changes are stored in modifiedCells
+- [x] Prevent duplicating tokens when leaving & returning

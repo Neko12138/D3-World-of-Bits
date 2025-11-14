@@ -111,8 +111,10 @@ function updateGrid() {
   const visibleRadiusLng = Math.ceil(
     (bounds.getEast() - bounds.getWest()) / CELL_SIZE / 2,
   );
-  const mapCenter = map.getCenter();
-  const [centerI, centerJ] = latLngToCell(mapCenter.lat, mapCenter.lng);
+  const [centerI, centerJ] = latLngToCell(
+    map.getCenter().lat,
+    map.getCenter().lng,
+  );
 
   const visibleKeys = new Set<string>();
   for (
@@ -129,7 +131,7 @@ function updateGrid() {
     }
   }
 
-  // Save state & remove out-of-view cells
+  // Save state & remove out-of-view cells, reset for memoryless
   for (const [key, data] of tokenMarkers) {
     if (!visibleKeys.has(key)) {
       modifiedCells.set(key, { value: data.value, canPickup: data.canPickup });
@@ -161,11 +163,10 @@ function updateGrid() {
       }).addTo(map);
 
       const restored = modifiedCells.get(key);
-      const value = restored
+      const value: number = restored
         ? restored.value
         : (luck(`${i},${j},token`) < TOKEN_PROBABILITY ? 1 : 0);
-      luck(`${i},${j},token`) < TOKEN_PROBABILITY ? 1 : 0;
-      const canPickup = restored ? restored.canPickup : true;
+      const canPickup: boolean = restored ? restored.canPickup : true;
 
       let marker: leaflet.Marker | null = null;
       if (value > 0) {
@@ -183,6 +184,8 @@ function updateGrid() {
       tokenMarkers.set(key, { rect, marker, value, canPickup });
     }
   }
+
+  return visibleKeys;
 }
 
 /* -------------------------- Player Marker --------------------------*/
@@ -252,10 +255,12 @@ function movePlayerSelected() {
       break;
   }
 
-  updateGrid();
+  const visibleKeys = updateGrid();
   updatePlayerMarker();
 
   const key = `${playerI},${playerJ}`;
+  if (!visibleKeys.has(key)) return; // restrict interaction to nearby cells
+
   const data = tokenMarkers.get(key);
   if (data && data.value > 0) {
     heldToken += data.value;
@@ -271,7 +276,10 @@ function movePlayerSelected() {
 addEventListener("keydown", (e) => {
   if (e.code !== "Space" || heldToken === 0) return;
 
+  const visibleKeys = updateGrid();
   const key = `${playerI},${playerJ}`;
+  if (!visibleKeys.has(key)) return; // restrict to nearby cells
+
   const data = tokenMarkers.get(key);
   const center = cellToLatLng(playerI, playerJ).getCenter();
 
