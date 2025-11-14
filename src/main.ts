@@ -131,9 +131,15 @@ function updateGrid() {
     }
   }
 
-  // remove cells out of view (memoryless)
+  //save state before removing
   for (const [key, data] of tokenMarkers) {
     if (!visibleKeys.has(key)) {
+      modifiedCells.set(key, {
+        value: data.value,
+        canPickup: data.canPickup,
+      });
+
+      // remove visual objects
       if (data.rect) map.removeLayer(data.rect);
       if (data.marker) map.removeLayer(data.marker);
       tokenMarkers.delete(key);
@@ -161,8 +167,19 @@ function updateGrid() {
         fillOpacity: 0.05,
       }).addTo(map);
 
-      const hasToken = luck(`${i},${j},token`) < TOKEN_PROBABILITY;
-      const value = hasToken ? 1 : 0;
+      const restored = modifiedCells.get(key);
+
+      let value: number;
+      let canPickup: boolean;
+
+      if (restored) {
+        value = restored.value;
+        canPickup = restored.canPickup;
+      } else {
+        const hasToken = luck(`${i},${j},token`) < TOKEN_PROBABILITY;
+        value = hasToken ? 1 : 0;
+        canPickup = true;
+      }
 
       let marker: leaflet.Marker | null = null;
       if (value > 0) {
@@ -179,7 +196,7 @@ function updateGrid() {
         }).addTo(map);
       }
 
-      tokenMarkers.set(key, { rect, marker, value, canPickup: true });
+      tokenMarkers.set(key, { rect, marker, value, canPickup });
     }
   }
 }

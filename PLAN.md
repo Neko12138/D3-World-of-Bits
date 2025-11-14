@@ -108,9 +108,9 @@ Key gameplay challenge: Make the world feel persistent: tokens placed, removed, 
 
 ##### 2. Implement Memento save/restore
 
-- [ ] Whenever a cell scrolls off-screen, save its state if it deviates from the default procedural state.
-- [ ] Restore logic (Memento restoration)
-- [ ] When a new cell enters view check if this cell exists in modifiedCells.
+- [x] Whenever a cell scrolls off-screen, save its state if it deviates from the default procedural state.
+- [x] Restore logic (Memento restoration)
+- [x] When a new cell enters view check if this cell exists in modifiedCells.
 
 ##### 3. Refactor rendering: rebuild the screen purely from stored + procedural data
 
