@@ -143,10 +143,10 @@ Key gameplay challenge: Enable players to move through the world by physically m
 
 ##### 2. Add Real-world Movement via Geolocation
 
-- [ ] Retrieves the player's real-world location from the browser's geolocation API.
-- [ ] Converts real-world displacement into game-world coordinate changes.
-- [ ] Triggers Facade movement events when geographic coordinates change.
-- [ ] Allows geolocation controls to be enabled or disabled at any time.
+- [x] Retrieves the player's real-world location from the browser's geolocation API.
+- [x] Converts real-world displacement into game-world coordinate changes.
+- [x] Triggers Facade movement events when geographic coordinates change.
+- [x] Allows geolocation controls to be enabled or disabled at any time.
 
 ##### 3. Persist Game State in localStorage
 

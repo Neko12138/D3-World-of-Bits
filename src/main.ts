@@ -29,12 +29,12 @@ class ButtonMovementController implements IMovementController {
   }
 
   private initUI() {
-    // Clear existing contents (if any)
+    // Clear existing contents
     this.directionDiv.innerHTML = "";
     this.stepsDiv.innerHTML = "";
 
-    const dirs = ["North", "South", "East", "West"];
-    dirs.forEach((dir) => {
+    // Create direction buttons
+    ["North", "South", "East", "West"].forEach((dir) => {
       const btn = document.createElement("button");
       btn.textContent = dir;
       btn.classList.add("movement-dir-btn");
@@ -52,11 +52,10 @@ class ButtonMovementController implements IMovementController {
   }
 
   start() {
-    // enable and wire handlers
+    // Enable and wire buttons
     this.directionButtons.forEach((btn) => {
       btn.disabled = false;
       btn.onclick = () => {
-        // select this button visually
         this.directionButtons.forEach((b) => b.classList.remove("selected"));
         btn.classList.add("selected");
       };
@@ -72,13 +71,13 @@ class ButtonMovementController implements IMovementController {
         if (!sel) return;
         const direction = sel.textContent!;
         if (this.moveCallback) this.moveCallback(direction, steps);
-        // clear selection after move
         sel.classList.remove("selected");
       };
     });
   }
 
   stop() {
+    // Disable all buttons
     this.directionButtons.forEach((btn) => {
       btn.disabled = true;
       btn.onclick = null;
@@ -102,31 +101,49 @@ class GeoMovementController implements IMovementController {
 
   start() {
     if (!navigator.geolocation) return;
-    // request coarse updates; we'll filter small changes
+
     this.watchId = navigator.geolocation.watchPosition(
       (pos) => {
         if (!this.lastPos) {
           this.lastPos = pos;
+          // Initialize player position to real-world location immediately
+          const [i, j] = latLngToCell(
+            pos.coords.latitude,
+            pos.coords.longitude,
+          );
+          playerI = i;
+          playerJ = j;
+          updatePlayerMarker();
+          updateGrid();
           return;
         }
+
         const dx = pos.coords.latitude - this.lastPos.coords.latitude;
         const dy = pos.coords.longitude - this.lastPos.coords.longitude;
 
-        // threshold avoids jitter; tuned small for map cell size of 1 degree (adjust later)
+        // Threshold to filter GPS jitter
         const threshold = 1e-5;
         if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
 
-        // prefer larger delta to decide direction
-        let direction = "";
-        if (Math.abs(dx) > Math.abs(dy)) direction = dx > 0 ? "South" : "North";
-        else direction = dy > 0 ? "East" : "West";
+        // Scale small GPS delta to game steps
+        const LAT_TO_STEP = 100000; // adjust factor to map small lat/lng changes to steps
+        const deltaI = Math.round(dx * LAT_TO_STEP);
+        const deltaJ = Math.round(dy * LAT_TO_STEP);
 
-        if (this.moveCallback) this.moveCallback(direction, 1);
+        // Decide direction
+        if (Math.abs(dx) > Math.abs(dy)) {
+          if (deltaI !== 0 && this.moveCallback) {
+            this.moveCallback(deltaI > 0 ? "South" : "North", Math.abs(deltaI));
+          }
+        } else {
+          if (deltaJ !== 0 && this.moveCallback) {
+            this.moveCallback(deltaJ > 0 ? "East" : "West", Math.abs(deltaJ));
+          }
+        }
+
         this.lastPos = pos;
       },
-      (err) => {
-        console.warn("Geolocation error:", err);
-      },
+      (err) => console.warn("Geolocation error:", err),
       {
         enableHighAccuracy: false,
         maximumAge: 1000,
@@ -245,7 +262,6 @@ interface CellState {
   canPickup: boolean;
 }
 const modifiedCells: Map<string, CellState> = new Map();
-void modifiedCells;
 
 /* -------------------------- Grid and Tokens --------------------------*/
 interface TokenData {
@@ -310,7 +326,7 @@ function updateGrid() {
     }
   }
 
-  // Save state & remove out-of-view cells, reset for memoryless
+  // Remove out-of-view cells & save state
   for (const [key, data] of tokenMarkers) {
     if (!visibleKeys.has(key)) {
       modifiedCells.set(key, { value: data.value, canPickup: data.canPickup });
@@ -344,7 +360,9 @@ function updateGrid() {
       const restored = modifiedCells.get(key);
       const value: number = restored
         ? restored.value
-        : (luck(`${i},${j},token`) < TOKEN_PROBABILITY ? 1 : 0);
+        : luck(`${i},${j},token`) < TOKEN_PROBABILITY
+        ? 1
+        : 0;
       const canPickup: boolean = restored ? restored.canPickup : true;
 
       let marker: leaflet.Marker | null = null;
@@ -385,9 +403,7 @@ function updatePlayerMarker() {
 }
 
 /* -------------------------- Movement integration --------------------------*/
-
 function handleMove(direction: string, steps: number) {
-  // update last shown for UI
   lastDirectionShown = direction;
   lastStepsShown = steps;
   updateUI();
@@ -411,7 +427,7 @@ function handleMove(direction: string, steps: number) {
   updatePlayerMarker();
 
   const key = `${playerI},${playerJ}`;
-  if (!visibleKeys.has(key)) return; // restrict interaction to nearby cells
+  if (!visibleKeys.has(key)) return;
 
   const data = tokenMarkers.get(key);
   if (data && data.value > 0 && data.canPickup) {
@@ -424,23 +440,29 @@ function handleMove(direction: string, steps: number) {
   }
 }
 
-/* -------------------------- Build movement controllers and facade --------------------------*/
+/* -------------------------- Initialize Controllers & Facade --------------------------*/
 const directionDiv = document.createElement("div");
 const stepsDiv = document.createElement("div");
 controlPanelDiv.append(directionDiv);
 controlPanelDiv.append(stepsDiv);
 
-const _buttonController = new ButtonMovementController(directionDiv, stepsDiv);
-const _geoController = new GeoMovementController();
+const buttonController = new ButtonMovementController(directionDiv, stepsDiv);
+const geoController = new GeoMovementController();
 
-// Choose default controller: geolocation first per D3.d
-const facade = new MovementFacade(_buttonController);
-
-// Wire facade -> game move handler
+const facade = new MovementFacade(geoController);
 facade.onMove((dir, steps) => handleMove(dir, steps));
+facade.start(); // start watching real-world position
 
-// Start the controller
-facade.start();
+const switchBtn = document.createElement("button");
+switchBtn.textContent = "Switch Control";
+switchBtn.onclick = () => {
+  if (facade["controller"] instanceof GeoMovementController) {
+    facade.replaceController(buttonController);
+  } else {
+    facade.replaceController(geoController);
+  }
+};
+controlPanelDiv.append(switchBtn);
 
 /* -------------------------- Place Token --------------------------*/
 addEventListener("keydown", (e) => {
@@ -448,7 +470,7 @@ addEventListener("keydown", (e) => {
 
   const visibleKeys = updateGrid();
   const key = `${playerI},${playerJ}`;
-  if (!visibleKeys.has(key)) return; // restrict to nearby cells
+  if (!visibleKeys.has(key)) return;
 
   const data = tokenMarkers.get(key);
   const center = cellToLatLng(playerI, playerJ).getCenter();
