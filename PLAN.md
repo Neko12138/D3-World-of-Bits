@@ -2,7 +2,7 @@
 
 Game Design Vision
 
-{a few-sentence description of the game mechanics}
+The player navigates a grid-based map where each cell may contain collectible tokens. Movement can be controlled either via buttons or through real-world motion using the device’s geolocation. Tokens are automatically picked up when the player moves onto a cell, and multiple tokens can be combined by placing them on the same cell. The goal is to collect enough tokens to reach a crafting target. The map dynamically loads and unloads cells based on the visible area, and the game state—including player position, held tokens, and modified cells—is persistently saved to localStorage.
 
 Technologies
 
