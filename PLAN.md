@@ -123,3 +123,58 @@ Key gameplay challenge: Make the world feel persistent: tokens placed, removed, 
 - [x] Any action that changes a cell must update modifiedCells.
 - [x] All changes are stored in modifiedCells
 - [x] Prevent duplicating tokens when leaving & returning
+
+D3.d: World of Bits, Gameplay Across Real-world Space and Time
+
+Key technical challenge: Design a unified, interface-driven movement system where different input methods (buttons or geolocation) can be swapped seamlessly behind a Facade, while game state—including player position and cell modifications—is persistently stored and restored using localStorage.
+
+Key gameplay challenge: Enable players to move through the world by physically moving in real space, while ensuring their progress, tokens, and position persist across sessions and allowing them to freely toggle between traditional button controls and real-world geolocation movement.
+
+#### D3.d Steps
+
+##### 1. Introduce a Movement Control Facade
+
+- [ ] Define a unified `IMovmentController` interface to abstract all movement methods.
+- [ ] Implement `ButtonMovementController` to encapsulate button movement logic.
+- [ ] Implement `GeoMovementController` to encapsulate geolocation movement logic.
+- [ ] Create `MovementFacade` to provide a unified source of movement events.
+- [ ] Modify the game's main loop to depend only on `MovementFacade`, not on specific control methods.
+- [ ] Migrate existing button events into the internal logic of `ButtonMovementController`.
+
+##### 2. Add Real-world Movement via Geolocation
+
+- [ ] Retrieves the player's real-world location from the browser's geolocation API.
+- [ ] Converts real-world displacement into game-world coordinate changes.
+- [ ] Triggers Facade movement events when geographic coordinates change.
+- [ ] Allows geolocation controls to be enabled or disabled at any time.
+
+##### 3. Persist Game State in localStorage
+
+- [ ] Save playerI, playerJ, heldToken, modifiedCells, and movementMode using localStorage.
+- [ ] Restore all states from localStorage when the game starts.
+- [ ] Save the current state immediately after a player moves.
+- [ ] Save the state immediately after picking up or placing a token.
+- [ ] Save settings immediately after switching movement modes.
+
+##### 4. Add Ability to Start a New Game
+
+- [ ] Add a "New Game" button to the control panel.
+- [ ] Clicking it will clear all save data in localStorage.
+- [ ] Reset the player's position, inventory, and modified cells.
+- [ ] Re-render the map and the player's initial state.
+
+##### 5. Support Switching Movement Mode
+
+- [ ] Allows specifying button or geolocation mode via a URL query string.
+- [ ] Allows switching movement modes by clicking a button on the interface.
+- [ ] Disables the old controller and launches the new controller when switching modes.
+- [ ] Saves the current control mode to localStorage.
+- [ ] The UI shows or hides the button control panel based on the mode.
+
+##### 6. Integrate D3.d features into Rendering & Logic
+
+- [ ] Player movement is entirely event-driven by MovementFacade.
+- [ ] Keep updateGrid and updatePlayerMarker independent of the control method.
+- [ ] Geolocation updates trigger rendering and state saving processes.
+- [ ] The move button is automatically hidden in geolocation mode.
+- [ ] Dragging and zooming the map still triggers grid reconstruction logic.
