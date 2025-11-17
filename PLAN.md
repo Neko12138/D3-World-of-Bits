@@ -165,11 +165,11 @@ Key gameplay challenge: Enable players to move through the world by physically m
 
 ##### 5. Support Switching Movement Mode
 
-- [ ] Allows specifying button or geolocation mode via a URL query string.
-- [ ] Allows switching movement modes by clicking a button on the interface.
-- [ ] Disables the old controller and launches the new controller when switching modes.
-- [ ] Saves the current control mode to localStorage.
-- [ ] The UI shows or hides the button control panel based on the mode.
+- [x] Allows specifying button or geolocation mode via a URL query string.
+- [x] Allows switching movement modes by clicking a button on the interface.
+- [x] Disables the old controller and launches the new controller when switching modes.
+- [x] Saves the current control mode to localStorage.
+- [x] The UI shows or hides the button control panel based on the mode.
 
 ##### 6. Integrate D3.d features into Rendering & Logic
 

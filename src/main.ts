@@ -482,6 +482,13 @@ function handleMove(direction: string, steps: number) {
   saveState();
 }
 
+/* -------------------------- Parse URL for movement mode --------------------------*/
+const urlParams = new URLSearchParams(globalThis.location.search);
+const urlMode = urlParams.get("mode");
+if (urlMode === "button" || urlMode === "geo") {
+  movementMode = urlMode;
+}
+
 /* -------------------------- Initialize Controllers & Facade --------------------------*/
 const directionDiv = document.createElement("div");
 const stepsDiv = document.createElement("div");
@@ -491,15 +498,19 @@ controlPanelDiv.append(stepsDiv);
 const buttonController = new ButtonMovementController(directionDiv, stepsDiv);
 const geoController = new GeoMovementController();
 
-const facade = new MovementFacade(geoController);
+// Initialize facade with correct controller based on movementMode
+const initialController = movementMode === "geo"
+  ? geoController
+  : buttonController;
+const facade = new MovementFacade(initialController);
 facade.onMove((dir, steps) => handleMove(dir, steps));
 
 loadState();
 
-// Start correct controller
-facade.replaceController(
-  movementMode === "geo" ? geoController : buttonController,
-);
+// Start the controller and adjust button panel visibility
+facade.replaceController(initialController);
+directionDiv.style.display = movementMode === "button" ? "block" : "none";
+stepsDiv.style.display = movementMode === "button" ? "block" : "none";
 
 /* -------------------------- Control Switch --------------------------*/
 const switchBtn = document.createElement("button");
@@ -510,6 +521,9 @@ switchBtn.onclick = () => {
   } else {
     facade.replaceController(geoController);
   }
+  // Show/hide button control panel based on current mode
+  directionDiv.style.display = movementMode === "button" ? "block" : "none";
+  stepsDiv.style.display = movementMode === "button" ? "block" : "none";
 };
 controlPanelDiv.append(switchBtn);
 
