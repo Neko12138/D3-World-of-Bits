@@ -513,6 +513,41 @@ switchBtn.onclick = () => {
 };
 controlPanelDiv.append(switchBtn);
 
+/* -------------------------- New Game Button --------------------------*/
+const newGameBtn = document.createElement("button");
+newGameBtn.textContent = "New Game";
+newGameBtn.onclick = () => {
+  if (
+    !confirm(
+      "Are you sure you want to start a new game? This will erase your current progress.",
+    )
+  ) return;
+
+  // Clear localStorage
+  localStorage.removeItem("gameState");
+
+  // Reset game state
+  playerI = 0;
+  playerJ = 0;
+  heldToken = 0;
+  modifiedCells.clear();
+  tokenMarkers.forEach((data) => {
+    if (data.marker) map.removeLayer(data.marker);
+    if (data.rect) map.removeLayer(data.rect);
+  });
+  tokenMarkers.clear();
+
+  // Reset movement mode to default
+  movementMode = "geo";
+  facade.replaceController(geoController);
+
+  // Re-render grid and player
+  updateGrid();
+  updatePlayerMarker();
+  updateUI();
+};
+controlPanelDiv.append(newGameBtn);
+
 /* -------------------------- Place Token --------------------------*/
 addEventListener("keydown", (e) => {
   if (e.code !== "Space" || heldToken === 0) return;

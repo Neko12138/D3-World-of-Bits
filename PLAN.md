@@ -158,10 +158,10 @@ Key gameplay challenge: Enable players to move through the world by physically m
 
 ##### 4. Add Ability to Start a New Game
 
-- [ ] Add a "New Game" button to the control panel.
-- [ ] Clicking it will clear all save data in localStorage.
-- [ ] Reset the player's position, inventory, and modified cells.
-- [ ] Re-render the map and the player's initial state.
+- [x] Add a "New Game" button to the control panel.
+- [x] Clicking it will clear all save data in localStorage.
+- [x] Reset the player's position, inventory, and modified cells.
+- [x] Re-render the map and the player's initial state.
 
 ##### 5. Support Switching Movement Mode
 
