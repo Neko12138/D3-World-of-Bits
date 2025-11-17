@@ -6,14 +6,29 @@ import "leaflet/dist/leaflet.css";
 import "./_leafletWorkaround.ts";
 import "./style.css";
 
-/* -------------------------- Movement Facade --------------------------*/
+/* -------------------------- Types --------------------------*/
+// Define cell state type for modified cells
+interface CellState {
+  value: number;
+  canPickup: boolean;
+}
 
+// Token data stored per cell
+interface TokenData {
+  marker: leaflet.Marker | null;
+  value: number;
+  canPickup: boolean;
+  rect: leaflet.Rectangle | undefined;
+}
+
+/* -------------------------- Movement Facade --------------------------*/
 export interface IMovementController {
   start(): void;
   stop(): void;
   onMove(callback: (direction: string, steps: number) => void): void;
 }
 
+// Button-based movement controller
 class ButtonMovementController implements IMovementController {
   private moveCallback: ((direction: string, steps: number) => void) | null =
     null;
@@ -42,6 +57,7 @@ class ButtonMovementController implements IMovementController {
       this.directionButtons.push(btn);
     });
 
+    // Create step buttons
     [1, 2, 3].forEach((step) => {
       const btn = document.createElement("button");
       btn.textContent = String(step);
@@ -93,6 +109,7 @@ class ButtonMovementController implements IMovementController {
   }
 }
 
+// Real-world movement controller using Geolocation API
 class GeoMovementController implements IMovementController {
   private moveCallback: ((direction: string, steps: number) => void) | null =
     null;
@@ -106,7 +123,7 @@ class GeoMovementController implements IMovementController {
       (pos) => {
         if (!this.lastPos) {
           this.lastPos = pos;
-          // Initialize player position to real-world location immediately
+          // Initialize player position to real-world location
           const [i, j] = latLngToCell(
             pos.coords.latitude,
             pos.coords.longitude,
@@ -165,6 +182,7 @@ class GeoMovementController implements IMovementController {
   }
 }
 
+// Facade for switching between movement controllers
 class MovementFacade {
   private controller: IMovementController;
   private callbacks: ((direction: string, steps: number) => void)[] = [];
@@ -195,10 +213,14 @@ class MovementFacade {
       this.callbacks.forEach((cb) => cb(dir, steps));
     });
     this.start();
+    movementMode = newController instanceof GeoMovementController
+      ? "geo"
+      : "button";
+    saveState();
   }
 }
 
-/* -------------------------- Control, Map, Status --------------------------*/
+/* -------------------------- DOM Elements --------------------------*/
 const controlPanelDiv = document.createElement("div");
 controlPanelDiv.id = "controlPanel";
 document.body.append(controlPanelDiv);
@@ -219,7 +241,7 @@ const TOKEN_PROBABILITY = 0.25;
 const TOKEN_VALUE = 5;
 const CRAFTING_GOAL = 32;
 
-/* -------------------------- Map --------------------------*/
+/* -------------------------- Map Setup --------------------------*/
 const map = leaflet.map(mapDiv, {
   center: ORIGIN_LATLNG,
   zoom: GAMEPLAY_ZOOM_LEVEL,
@@ -236,10 +258,45 @@ leaflet
   })
   .addTo(map);
 
-/* -------------------------- Persistence --------------------------*/
-let heldToken = Number(sessionStorage.getItem("heldToken") || 0);
+/* -------------------------- Game State --------------------------*/
+let playerI = 0;
+let playerJ = 0;
+let heldToken = 0;
+let modifiedCells: Map<string, CellState> = new Map();
+let movementMode: "geo" | "button" = "geo"; // default mode
+let _playerMarker: leaflet.Marker | null = null;
 
-/* -------------------------- UI helpers --------------------------*/
+// Save current game state to localStorage
+function saveState() {
+  const cellsObj: Record<string, CellState> = {};
+  modifiedCells.forEach((v, k) => (cellsObj[k] = v));
+  const state = {
+    playerI,
+    playerJ,
+    heldToken,
+    modifiedCells: cellsObj,
+    movementMode,
+  };
+  localStorage.setItem("gameState", JSON.stringify(state));
+}
+
+// Load state from localStorage
+function loadState() {
+  const stateStr = localStorage.getItem("gameState");
+  if (!stateStr) return;
+  try {
+    const state = JSON.parse(stateStr);
+    playerI = state.playerI;
+    playerJ = state.playerJ;
+    heldToken = state.heldToken;
+    movementMode = state.movementMode || "geo";
+    modifiedCells = new Map(Object.entries(state.modifiedCells));
+  } catch {
+    console.warn("Failed to parse saved state.");
+  }
+}
+
+/* -------------------------- UI --------------------------*/
 let lastDirectionShown: string | null = null;
 let lastStepsShown: number | null = null;
 
@@ -255,25 +312,6 @@ function updateUI() {
     <span>Steps: ${lastStepsShown ?? "-"}</span>
   `;
 }
-
-/* -------------------------- Modified Cells --------------------------*/
-interface CellState {
-  value: number;
-  canPickup: boolean;
-}
-const modifiedCells: Map<string, CellState> = new Map();
-
-/* -------------------------- Grid and Tokens --------------------------*/
-interface TokenData {
-  marker: leaflet.Marker | null;
-  value: number;
-  canPickup: boolean;
-  rect: leaflet.Rectangle | undefined;
-}
-const tokenMarkers: Map<string, TokenData> = new Map();
-let playerI = 0;
-let playerJ = 0;
-let _playerMarker: leaflet.Marker | null = null;
 
 /* -------------------------- Coordinate Conversion --------------------------*/
 function latLngToCell(lat: number, lng: number): [number, number] {
@@ -298,6 +336,8 @@ function checkVictory() {
 }
 
 /* -------------------------- Grid Rendering --------------------------*/
+const tokenMarkers: Map<string, TokenData> = new Map();
+
 function updateGrid() {
   const bounds = map.getBounds();
   const visibleRadiusLat = Math.ceil(
@@ -438,6 +478,8 @@ function handleMove(direction: string, steps: number) {
     updateUI();
     checkVictory();
   }
+
+  saveState();
 }
 
 /* -------------------------- Initialize Controllers & Facade --------------------------*/
@@ -451,8 +493,15 @@ const geoController = new GeoMovementController();
 
 const facade = new MovementFacade(geoController);
 facade.onMove((dir, steps) => handleMove(dir, steps));
-facade.start(); // start watching real-world position
 
+loadState();
+
+// Start correct controller
+facade.replaceController(
+  movementMode === "geo" ? geoController : buttonController,
+);
+
+/* -------------------------- Control Switch --------------------------*/
 const switchBtn = document.createElement("button");
 switchBtn.textContent = "Switch Control";
 switchBtn.onclick = () => {
@@ -507,7 +556,7 @@ addEventListener("keydown", (e) => {
   }
 
   updateUI();
-  sessionStorage.setItem("heldToken", heldToken.toString());
+  saveState();
 });
 
 /* -------------------------- Map Move --------------------------*/

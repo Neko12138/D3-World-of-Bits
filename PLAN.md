@@ -150,11 +150,11 @@ Key gameplay challenge: Enable players to move through the world by physically m
 
 ##### 3. Persist Game State in localStorage
 
-- [ ] Save playerI, playerJ, heldToken, modifiedCells, and movementMode using localStorage.
-- [ ] Restore all states from localStorage when the game starts.
-- [ ] Save the current state immediately after a player moves.
-- [ ] Save the state immediately after picking up or placing a token.
-- [ ] Save settings immediately after switching movement modes.
+- [x] Save playerI, playerJ, heldToken, modifiedCells, and movementMode using localStorage.
+- [x] Restore all states from localStorage when the game starts.
+- [x] Save the current state immediately after a player moves.
+- [x] Save the state immediately after picking up or placing a token.
+- [x] Save settings immediately after switching movement modes.
 
 ##### 4. Add Ability to Start a New Game
 
