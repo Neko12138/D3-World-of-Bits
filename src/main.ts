@@ -6,6 +6,181 @@ import "leaflet/dist/leaflet.css";
 import "./_leafletWorkaround.ts";
 import "./style.css";
 
+/* -------------------------- Movement Facade --------------------------*/
+
+export interface IMovementController {
+  start(): void;
+  stop(): void;
+  onMove(callback: (direction: string, steps: number) => void): void;
+}
+
+class ButtonMovementController implements IMovementController {
+  private moveCallback: ((direction: string, steps: number) => void) | null =
+    null;
+  private directionButtons: HTMLButtonElement[] = [];
+  private stepButtons: HTMLButtonElement[] = [];
+  private directionDiv: HTMLElement;
+  private stepsDiv: HTMLElement;
+
+  constructor(directionDiv: HTMLElement, stepsDiv: HTMLElement) {
+    this.directionDiv = directionDiv;
+    this.stepsDiv = stepsDiv;
+    this.initUI();
+  }
+
+  private initUI() {
+    // Clear existing contents (if any)
+    this.directionDiv.innerHTML = "";
+    this.stepsDiv.innerHTML = "";
+
+    const dirs = ["North", "South", "East", "West"];
+    dirs.forEach((dir) => {
+      const btn = document.createElement("button");
+      btn.textContent = dir;
+      btn.classList.add("movement-dir-btn");
+      this.directionDiv.append(btn);
+      this.directionButtons.push(btn);
+    });
+
+    [1, 2, 3].forEach((step) => {
+      const btn = document.createElement("button");
+      btn.textContent = String(step);
+      btn.classList.add("movement-step-btn");
+      this.stepsDiv.append(btn);
+      this.stepButtons.push(btn);
+    });
+  }
+
+  start() {
+    // enable and wire handlers
+    this.directionButtons.forEach((btn) => {
+      btn.disabled = false;
+      btn.onclick = () => {
+        // select this button visually
+        this.directionButtons.forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      };
+    });
+
+    this.stepButtons.forEach((btn) => {
+      btn.disabled = false;
+      btn.onclick = () => {
+        const steps = Number(btn.textContent);
+        const sel = this.directionButtons.find((b) =>
+          b.classList.contains("selected")
+        );
+        if (!sel) return;
+        const direction = sel.textContent!;
+        if (this.moveCallback) this.moveCallback(direction, steps);
+        // clear selection after move
+        sel.classList.remove("selected");
+      };
+    });
+  }
+
+  stop() {
+    this.directionButtons.forEach((btn) => {
+      btn.disabled = true;
+      btn.onclick = null;
+    });
+    this.stepButtons.forEach((btn) => {
+      btn.disabled = true;
+      btn.onclick = null;
+    });
+  }
+
+  onMove(callback: (direction: string, steps: number) => void) {
+    this.moveCallback = callback;
+  }
+}
+
+class GeoMovementController implements IMovementController {
+  private moveCallback: ((direction: string, steps: number) => void) | null =
+    null;
+  private watchId: number | null = null;
+  private lastPos: GeolocationPosition | null = null;
+
+  start() {
+    if (!navigator.geolocation) return;
+    // request coarse updates; we'll filter small changes
+    this.watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!this.lastPos) {
+          this.lastPos = pos;
+          return;
+        }
+        const dx = pos.coords.latitude - this.lastPos.coords.latitude;
+        const dy = pos.coords.longitude - this.lastPos.coords.longitude;
+
+        // threshold avoids jitter; tuned small for map cell size of 1 degree (adjust later)
+        const threshold = 1e-5;
+        if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+
+        // prefer larger delta to decide direction
+        let direction = "";
+        if (Math.abs(dx) > Math.abs(dy)) direction = dx > 0 ? "South" : "North";
+        else direction = dy > 0 ? "East" : "West";
+
+        if (this.moveCallback) this.moveCallback(direction, 1);
+        this.lastPos = pos;
+      },
+      (err) => {
+        console.warn("Geolocation error:", err);
+      },
+      {
+        enableHighAccuracy: false,
+        maximumAge: 1000,
+        timeout: 5000,
+      },
+    );
+  }
+
+  stop() {
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      this.watchId = null;
+    }
+    this.lastPos = null;
+  }
+
+  onMove(callback: (direction: string, steps: number) => void) {
+    this.moveCallback = callback;
+  }
+}
+
+class MovementFacade {
+  private controller: IMovementController;
+  private callbacks: ((direction: string, steps: number) => void)[] = [];
+
+  constructor(controller: IMovementController) {
+    this.controller = controller;
+    this.controller.onMove((dir, steps) => {
+      this.callbacks.forEach((cb) => cb(dir, steps));
+    });
+  }
+
+  start() {
+    this.controller.start();
+  }
+
+  stop() {
+    this.controller.stop();
+  }
+
+  onMove(callback: (direction: string, steps: number) => void) {
+    this.callbacks.push(callback);
+  }
+
+  replaceController(newController: IMovementController) {
+    this.stop();
+    this.controller = newController;
+    this.controller.onMove((dir, steps) => {
+      this.callbacks.forEach((cb) => cb(dir, steps));
+    });
+    this.start();
+  }
+}
+
 /* -------------------------- Control, Map, Status --------------------------*/
 const controlPanelDiv = document.createElement("div");
 controlPanelDiv.id = "controlPanel";
@@ -47,6 +222,10 @@ leaflet
 /* -------------------------- Persistence --------------------------*/
 let heldToken = Number(sessionStorage.getItem("heldToken") || 0);
 
+/* -------------------------- UI helpers --------------------------*/
+let lastDirectionShown: string | null = null;
+let lastStepsShown: number | null = null;
+
 function updateUI() {
   statusPanelDiv.innerHTML = `
     <span>${
@@ -55,8 +234,8 @@ function updateUI() {
       : `Token: ${heldToken} ($${heldToken * TOKEN_VALUE})`
   }</span>
     <span>Press SPACE to place token</span>
-    <span>Direction: ${selectedDirection ?? "-"}</span>
-    <span>Steps: ${selectedSteps ?? "-"}</span>
+    <span>Direction: ${lastDirectionShown ?? "-"}</span>
+    <span>Steps: ${lastStepsShown ?? "-"}</span>
   `;
 }
 
@@ -205,53 +384,26 @@ function updatePlayerMarker() {
   map.panTo(center);
 }
 
-/* -------------------------- Direction & Step Controls --------------------------*/
-let selectedDirection: string | null = null;
-let selectedSteps: number | null = null;
+/* -------------------------- Movement integration --------------------------*/
 
-const directionDiv = document.createElement("div");
-controlPanelDiv.append(directionDiv);
-["North", "South", "East", "West"].forEach((dir) => {
-  const btn = document.createElement("button");
-  btn.textContent = dir;
-  btn.addEventListener("click", () => {
-    selectedDirection = dir;
-    updateUI();
-  });
-  directionDiv.append(btn);
-});
+function handleMove(direction: string, steps: number) {
+  // update last shown for UI
+  lastDirectionShown = direction;
+  lastStepsShown = steps;
+  updateUI();
 
-const stepsDiv = document.createElement("div");
-controlPanelDiv.append(stepsDiv);
-[1, 2, 3].forEach((step) => {
-  const btn = document.createElement("button");
-  btn.textContent = step.toString();
-  btn.addEventListener("click", () => {
-    selectedSteps = step;
-    movePlayerSelected();
-    selectedDirection = null;
-    selectedSteps = null;
-    updateUI();
-  });
-  stepsDiv.append(btn);
-});
-
-/* -------------------------- Move Player --------------------------*/
-function movePlayerSelected() {
-  if (!selectedDirection || !selectedSteps) return;
-
-  switch (selectedDirection) {
+  switch (direction) {
     case "North":
-      playerI -= selectedSteps;
+      playerI -= steps;
       break;
     case "South":
-      playerI += selectedSteps;
+      playerI += steps;
       break;
     case "East":
-      playerJ += selectedSteps;
+      playerJ += steps;
       break;
     case "West":
-      playerJ -= selectedSteps;
+      playerJ -= steps;
       break;
   }
 
@@ -262,7 +414,7 @@ function movePlayerSelected() {
   if (!visibleKeys.has(key)) return; // restrict interaction to nearby cells
 
   const data = tokenMarkers.get(key);
-  if (data && data.value > 0) {
+  if (data && data.value > 0 && data.canPickup) {
     heldToken += data.value;
     data.value = 0;
     if (data.marker) map.removeLayer(data.marker);
@@ -271,6 +423,24 @@ function movePlayerSelected() {
     checkVictory();
   }
 }
+
+/* -------------------------- Build movement controllers and facade --------------------------*/
+const directionDiv = document.createElement("div");
+const stepsDiv = document.createElement("div");
+controlPanelDiv.append(directionDiv);
+controlPanelDiv.append(stepsDiv);
+
+const _buttonController = new ButtonMovementController(directionDiv, stepsDiv);
+const _geoController = new GeoMovementController();
+
+// Choose default controller: geolocation first per D3.d
+const facade = new MovementFacade(_buttonController);
+
+// Wire facade -> game move handler
+facade.onMove((dir, steps) => handleMove(dir, steps));
+
+// Start the controller
+facade.start();
 
 /* -------------------------- Place Token --------------------------*/
 addEventListener("keydown", (e) => {

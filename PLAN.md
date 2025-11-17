@@ -134,12 +134,12 @@ Key gameplay challenge: Enable players to move through the world by physically m
 
 ##### 1. Introduce a Movement Control Facade
 
-- [ ] Define a unified `IMovmentController` interface to abstract all movement methods.
-- [ ] Implement `ButtonMovementController` to encapsulate button movement logic.
-- [ ] Implement `GeoMovementController` to encapsulate geolocation movement logic.
-- [ ] Create `MovementFacade` to provide a unified source of movement events.
-- [ ] Modify the game's main loop to depend only on `MovementFacade`, not on specific control methods.
-- [ ] Migrate existing button events into the internal logic of `ButtonMovementController`.
+- [x] Define a unified `IMovmentController` interface to abstract all movement methods.
+- [x] Implement `ButtonMovementController` to encapsulate button movement logic.
+- [x] Implement `GeoMovementController` to encapsulate geolocation movement logic.
+- [x] Create `MovementFacade` to provide a unified source of movement events.
+- [x] Modify the game's main loop to depend only on `MovementFacade`, not on specific control methods.
+- [x] Migrate existing button events into the internal logic of `ButtonMovementController`.
 
 ##### 2. Add Real-world Movement via Geolocation
 
