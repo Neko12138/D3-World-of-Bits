@@ -503,7 +503,11 @@ const initialController = movementMode === "geo"
   ? geoController
   : buttonController;
 const facade = new MovementFacade(initialController);
-facade.onMove((dir, steps) => handleMove(dir, steps));
+facade.onMove((dir, steps) => {
+  handleMove(dir, steps);
+  directionDiv.style.display = movementMode === "button" ? "block" : "none";
+  stepsDiv.style.display = movementMode === "button" ? "block" : "none";
+});
 
 loadState();
 

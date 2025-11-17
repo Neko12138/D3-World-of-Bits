@@ -173,8 +173,8 @@ Key gameplay challenge: Enable players to move through the world by physically m
 
 ##### 6. Integrate D3.d features into Rendering & Logic
 
-- [ ] Player movement is entirely event-driven by MovementFacade.
-- [ ] Keep updateGrid and updatePlayerMarker independent of the control method.
-- [ ] Geolocation updates trigger rendering and state saving processes.
-- [ ] The move button is automatically hidden in geolocation mode.
-- [ ] Dragging and zooming the map still triggers grid reconstruction logic.
+- [x] Player movement is entirely event-driven by MovementFacade.
+- [x] Keep updateGrid and updatePlayerMarker independent of the control method.
+- [x] Geolocation updates trigger rendering and state saving processes.
+- [x] The move button is automatically hidden in geolocation mode.
+- [x] Dragging and zooming the map still triggers grid reconstruction logic.
