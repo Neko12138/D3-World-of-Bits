@@ -235,8 +235,8 @@ document.body.append(statusPanelDiv);
 
 /* -------------------------- Constants --------------------------*/
 const ORIGIN_LATLNG = leaflet.latLng(0, 0);
-const GAMEPLAY_ZOOM_LEVEL = 6;
-const CELL_SIZE = 1;
+const GAMEPLAY_ZOOM_LEVEL = 19;
+const CELL_SIZE = 0.00007;
 const TOKEN_PROBABILITY = 0.25;
 const TOKEN_VALUE = 5;
 const CRAFTING_GOAL = 32;
@@ -252,7 +252,7 @@ const map = leaflet.map(mapDiv, {
 
 leaflet
   .tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 10,
+    maxZoom: 30,
     attribution:
       '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   })
@@ -566,9 +566,19 @@ newGameBtn.onclick = () => {
 };
 controlPanelDiv.append(newGameBtn);
 
+const dropBtn = document.createElement("button");
+dropBtn.textContent = "DROP";
+dropBtn.onclick = () => dropToken();
+controlPanelDiv.append(dropBtn);
+
 /* -------------------------- Place Token --------------------------*/
+
 addEventListener("keydown", (e) => {
   if (e.code !== "Space" || heldToken === 0) return;
+});
+
+function dropToken() {
+  if (heldToken === 0) return;
 
   const visibleKeys = updateGrid();
   const key = `${playerI},${playerJ}`;
@@ -610,7 +620,7 @@ addEventListener("keydown", (e) => {
 
   updateUI();
   saveState();
-});
+}
 
 /* -------------------------- Map Move --------------------------*/
 map.on("moveend", updateGrid);
